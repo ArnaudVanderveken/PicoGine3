@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35506.116 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PicoGine3", "PicoGine3\PicoGine3.vcxproj", "{58BF9B83-9508-40E1-8EDF-14274A29503D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug-DX12|x64 = Debug-DX12|x64
+		Debug-VK|x64 = Debug-VK|x64
+		Release-DX12|x64 = Release-DX12|x64
+		Release-VK|x64 = Release-VK|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Debug-DX12|x64.ActiveCfg = Debug-DX12|x64
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Debug-DX12|x64.Build.0 = Debug-DX12|x64
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Debug-VK|x64.ActiveCfg = Debug-VK|x64
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Debug-VK|x64.Build.0 = Debug-VK|x64
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Release-DX12|x64.ActiveCfg = Release-DX12|x64
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Release-DX12|x64.Build.0 = Release-DX12|x64
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Release-VK|x64.ActiveCfg = Release-VK|x64
+		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Release-VK|x64.Build.0 = Release-VK|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

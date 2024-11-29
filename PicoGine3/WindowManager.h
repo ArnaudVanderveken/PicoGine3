@@ -22,9 +22,19 @@ public:
 private:
 
 #if defined(_DX12)
-	const char* m_WindowName{ "PicoGine3 - DX12" };
+	#if defined(_DEBUG)
+		const char* m_WindowName{ "PicoGine3 - DEBUG - DX12" };
+	#else
+		const char* m_WindowName{ "PicoGine3 - RELEASE - DX12" };
+	#endif
+
 #elif defined(_VK)
-	const char* m_WindowName{ "PicoGine3 - Vulkan" };
+	#if defined(_DEBUG)
+		const char* m_WindowName{ "PicoGine3 - DEBUG - Vulkan" };
+	#else
+		const char* m_WindowName{ "PicoGine3 - RELEASE - Vulkan" };
+	#endif
+
 #else
 	const char* m_WindowName{ "ERROR - INVALID API" };
 #endif

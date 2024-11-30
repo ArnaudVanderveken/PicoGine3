@@ -3,6 +3,7 @@
 
 CoreSystems::CoreSystems()
 	: m_pWindowManager{ std::make_unique<WindowManager>() }
+	, m_pInputManager{ std::make_unique<InputManager>() }
 {
 
 }
@@ -26,10 +27,28 @@ void CoreSystems::CoreLoop()
     {
         while (SDL_PollEvent(&event))
         {
-            if (event.type == SDL_QUIT)
+            switch (event.type)
+            {
+            case SDL_QUIT:
                 running = false;
 
+            case SDL_KEYDOWN:
+                m_pInputManager->KeyDown(event.key.keysym.sym)
+            case SDL_KEYUP:
+                handleKeyboardEvent(event.key);
+                break;
 
+            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEBUTTONUP:
+            //case SDL_MOUSEMOTION:
+            case SDL_MOUSEWHEEL:
+                handleMouseEvent(event);
+                break;
+
+			default:
+			    break;
+            }
         }
+
     } while (running);
 }

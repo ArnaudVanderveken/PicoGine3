@@ -2,6 +2,8 @@
 #define PCH_H
 
 /* --- STD --- */
+#include <algorithm>
+#include <array>
 #include <iostream>
 #include <memory>
 #include <string>

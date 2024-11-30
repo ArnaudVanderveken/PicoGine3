@@ -1,6 +1,7 @@
 #ifndef CORESYSTEMS_H
 #define CORESYSTEMS_H
 
+#include "InputManager.h"
 #include "WindowManager.h"
 
 class CoreSystems final : public Singleton<CoreSystems>
@@ -24,6 +25,7 @@ public:
 
 private:
 	std::unique_ptr<WindowManager> m_pWindowManager;
+	std::unique_ptr<InputManager> m_pInputManager;
 
 };
 

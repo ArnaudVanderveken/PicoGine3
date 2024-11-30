@@ -77,3 +77,43 @@ HWND WindowManager::GetHWnd() const
 {
     return m_WindowHandle;
 }
+
+void WindowManager::SetFullscreenState(WindowFullscreenState state)
+{
+    //const Uint32 fullscreenFlag = SDL_WINDOW_FULLSCREEN;
+    //const bool isFullscreen = SDL_GetWindowFlags(m_pWindow) & fullscreenFlag;
+    //SDL_SetWindowFullscreen(m_pWindow, isFullscreen ? 0 : fullscreenFlag);
+    //SDL_ShowCursor(isFullscreen); // Show cursor in windowed mode, hide in fullscreen
+
+    switch (state)
+    {
+    case WindowFullscreenState::None:
+        SDL_SetWindowFullscreen(m_pWindow, 0);
+	    break;
+
+    case WindowFullscreenState::Borderless:
+        if (!(SDL_GetWindowFlags(m_pWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP))
+			SDL_SetWindowFullscreen(m_pWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+	    break;
+
+    case WindowFullscreenState::Fullscreen:
+        if (!(SDL_GetWindowFlags(m_pWindow) & SDL_WINDOW_FULLSCREEN))
+			SDL_SetWindowFullscreen(m_pWindow, SDL_WINDOW_FULLSCREEN);
+	    break;
+    }
+}
+
+WindowManager::WindowFullscreenState WindowManager::GetFullscreenState() const
+{
+	switch (const Uint32 fullscreenFlag = SDL_GetWindowFlags(m_pWindow))
+	{
+	case SDL_WINDOW_FULLSCREEN:
+        return WindowFullscreenState::Fullscreen;
+
+	case SDL_WINDOW_FULLSCREEN_DESKTOP:
+        return WindowFullscreenState::Borderless;
+
+    default:
+        return WindowFullscreenState::None;
+	}
+}

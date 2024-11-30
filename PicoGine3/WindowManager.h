@@ -5,6 +5,13 @@
 class WindowManager final
 {
 public:
+	enum class WindowFullscreenState
+	{
+		None,
+		Borderless,
+		Fullscreen
+	};
+
 	explicit WindowManager();
 	~WindowManager();
 
@@ -18,6 +25,9 @@ public:
 	[[nodiscard]] SDL_Window* GetWindow() const;
 	[[nodiscard]] HINSTANCE GetHInstance() const;
 	[[nodiscard]] HWND GetHWnd() const;
+
+	void SetFullscreenState(WindowFullscreenState state);
+	[[nodiscard]] WindowFullscreenState GetFullscreenState() const;
 
 private:
 

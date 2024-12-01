@@ -1,8 +1,6 @@
 #ifndef CORESYSTEMS_H
 #define CORESYSTEMS_H
 
-#include "InputManager.h"
-#include "WindowManager.h"
 
 class CoreSystems final : public Singleton<CoreSystems>
 {
@@ -17,16 +15,17 @@ public:
 	CoreSystems(CoreSystems&&) noexcept = delete;
 	CoreSystems& operator=(CoreSystems&&) noexcept = delete;
 
-	[[nodiscard]] bool IsInitialized() const;
+	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-	[[nodiscard]] WindowManager* GetWindowManager() const;
+	[[nodiscard]] static bool IsInitialized();
 
-	void CoreLoop();
+	[[nodiscard]] HINSTANCE GetAppHinstance() const;
+
+	HRESULT CoreLoop() const;
 
 private:
-	std::unique_ptr<WindowManager> m_pWindowManager;
-	std::unique_ptr<InputManager> m_pInputManager;
 
+	HINSTANCE m_AppHinstance;
 };
 
 #endif //CORESYSTEMS_H

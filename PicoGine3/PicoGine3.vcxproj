@@ -77,7 +77,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_DX12;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -85,11 +85,11 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\SDL2\bin\Debug\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>robocopy "$(SolutionDir)3rdParty\SDL2\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" SDL2.dll /E /XJD /XJF /R:0 /W:0
+      <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
@@ -102,7 +102,7 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -110,11 +110,11 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\SDL2\bin\Debug\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>robocopy "$(SolutionDir)3rdParty\SDL2\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" SDL2.dll /E /XJD /XJF /R:0 /W:0
+      <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
@@ -129,7 +129,7 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_DX12;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -139,13 +139,11 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\SDL2\bin\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>robocopy "$(SolutionDir)3rdParty\SDL2\bin\Release" "$(SolutionDir)$(Platform)\$(Configuration)" SDL2.dll /E /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)
-robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
+      <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -158,7 +156,7 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -168,19 +166,18 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\SDL2\bin\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>robocopy "$(SolutionDir)3rdParty\SDL2\bin\Release" "$(SolutionDir)$(Platform)\$(Configuration)" SDL2.dll /E /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)
-robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
+      <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CoreSystems.cpp" />
     <ClCompile Include="InputManager.cpp" />
+    <ClCompile Include="Logger.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-DX12|x64'">Create</PrecompiledHeader>
@@ -188,6 +185,7 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Settings.cpp" />
     <ClCompile Include="WindowManager.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -195,8 +193,12 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="CoreSystems.h" />
     <ClInclude Include="InputManager.h" />
     <ClInclude Include="Keycodes.h" />
+    <ClInclude Include="Logger.h" />
+    <ClInclude Include="Macros.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="Settings.h" />
     <ClInclude Include="Singleton.h" />
+    <ClInclude Include="WindowFullscreenState.h" />
     <ClInclude Include="WindowManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

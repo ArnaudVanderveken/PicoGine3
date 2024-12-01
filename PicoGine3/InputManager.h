@@ -1,12 +1,15 @@
-#pragma once
+#ifndef INPUTMANAGER_H
+#define INPUTMANAGER_H
 
 #include "Keycodes.h"
 
-class InputManager final
+class InputManager final : public Singleton<InputManager>
 {
+	friend class Singleton<InputManager>;
+	explicit InputManager();
+
 public:
-	explicit InputManager() = default;
-	~InputManager() = default;
+	~InputManager() override = default;
 
 	InputManager(const InputManager&) noexcept = delete;
 	InputManager& operator=(const InputManager&) noexcept = delete;
@@ -15,7 +18,7 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void RunCommands() const;
+	void UpdateAndExec() const;
 	void EndFrame();
 	void Flush();
 
@@ -26,6 +29,9 @@ public:
 	[[nodiscard]] bool IsKeyUp(Keycode key) const;
 	[[nodiscard]] bool IsKeyPressed(Keycode key) const;
 
+	/*[[nodiscard]] const XMINT2& GetMousePosition() const;
+	[[nodiscard]] const XMINT2& GetMouseDelta() const;*/
+
 private:
 	bool m_IsInitialized;
 
@@ -33,5 +39,10 @@ private:
 	std::array<bool, 256> m_FrameKeyDown{};
 	std::array<bool, 256> m_FrameKeyUp{};
 
+	/*XMINT2 m_MousePosition;
+	XMINT2 m_PreviousMousePosition;
+	XMINT2 m_DeltaMousePosition;*/
+
 };
 
+#endif //INPUTMANAGER_H

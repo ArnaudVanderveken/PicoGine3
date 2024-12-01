@@ -1,76 +1,74 @@
 #include "pch.h"
 #include "WindowManager.h"
 
-#include <SDL_syswm.h>
+#include "CoreSystems.h"
+#include "Settings.h"
 
-WindowManager::WindowManager()
-	: m_IsInitialized{ false }
-	, m_pWindow{ nullptr }
-	, m_HInstance{}
-	, m_WindowHandle{}
+
+WindowManager::WindowManager():
+	m_IsInitialized{ false },
+	m_FullscreenState{ WindowFullscreenState::None },
+	m_pWindowClassName{ L"PicoGine3WindowClassName" },
+	m_WindowHandle{},
+	m_WindowRect{}
 {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
-    {
-        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
-        return;
-    }
+	const auto& core = CoreSystems::Get();
+	const auto& settings = Settings::Get();
 
-    m_pWindow = SDL_CreateWindow(
-        m_WindowName,
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        1920, // Width
-        1080, // Height
-        SDL_WINDOW_SHOWN // Flags
-    );
+	//Create Window Class
+	WNDCLASS windowClass;
+	ZeroMemory(&windowClass, sizeof(WNDCLASS));
 
-    if (!m_pWindow)
-    {
-        std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
-        SDL_Quit();
-        return;
-    }
+	windowClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	windowClass.hIcon = nullptr;
+	windowClass.hbrBackground = nullptr;
+	windowClass.style = CS_HREDRAW | CS_VREDRAW;
+	windowClass.lpfnWndProc = CoreSystems::WindowProc;
+	windowClass.hInstance = core.GetAppHinstance();
+	windowClass.lpszClassName = m_pWindowClassName;
 
-    SDL_SysWMinfo wmInfo;
-    SDL_VERSION(&wmInfo.version) // Initialize wmInfo.version
-    if (SDL_GetWindowWMInfo(m_pWindow, &wmInfo))
-    {
-        m_WindowHandle = wmInfo.info.win.window;
-        m_HInstance = wmInfo.info.win.hinstance;
-    }
-    else
-    {
-        std::cerr << "SDL_GetWindowWMInfo Error: " << SDL_GetError() << std::endl;
-        return;
-    }
+	if (!RegisterClass(&windowClass))
+		HANDLE_ERROR(HRESULT_FROM_WIN32(GetLastError()))
 
-    m_IsInitialized = true;
+	//Create Window
+	m_WindowRect = { 0, 0, settings.GetDesiredResolution().x, settings.GetDesiredResolution().y };
+	AdjustWindowRect(&m_WindowRect, WS_OVERLAPPEDWINDOW, false);
+	m_ActualWindowWidth = m_WindowRect.right - m_WindowRect.left;
+	m_ActualWindowHeight = m_WindowRect.bottom - m_WindowRect.top;
+
+	m_WindowHandle = CreateWindow(m_pWindowClassName,
+		settings.GetWindowName(),
+		WS_OVERLAPPEDWINDOW,
+		0,
+		0,
+		m_ActualWindowWidth,
+		m_ActualWindowHeight,
+		NULL,
+		nullptr,
+		core.GetAppHinstance(),
+		this
+	);
+
+	if (!m_WindowHandle)
+		HANDLE_ERROR(HRESULT_FROM_WIN32(GetLastError()))
+
+	m_IsInitialized = true;
+
+	//Show The Window
+	ShowWindow(m_WindowHandle, SW_SHOWDEFAULT);
+
+	
 }
 
 WindowManager::~WindowManager()
 {
-    if (m_pWindow)
-    {
-        SDL_DestroyWindow(m_pWindow);
-        m_pWindow = nullptr;
-    }
-
-    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+	DestroyWindow(m_WindowHandle);
+	UnregisterClass(m_pWindowClassName, CoreSystems::Get().GetAppHinstance());
 }
 
 bool WindowManager::IsInitialized() const
 {
 	return m_IsInitialized;
-}
-
-SDL_Window* WindowManager::GetWindow() const
-{
-	return m_pWindow;
-}
-
-HINSTANCE WindowManager::GetHInstance() const
-{
-    return m_HInstance;
 }
 
 HWND WindowManager::GetHWnd() const
@@ -80,40 +78,74 @@ HWND WindowManager::GetHWnd() const
 
 void WindowManager::SetFullscreenState(WindowFullscreenState state)
 {
-    //const Uint32 fullscreenFlag = SDL_WINDOW_FULLSCREEN;
-    //const bool isFullscreen = SDL_GetWindowFlags(m_pWindow) & fullscreenFlag;
-    //SDL_SetWindowFullscreen(m_pWindow, isFullscreen ? 0 : fullscreenFlag);
-    //SDL_ShowCursor(isFullscreen); // Show cursor in windowed mode, hide in fullscreen
+	// Moved outside of switch to suppress warning
+	static LONG windowStyle{};
+	static HMONITOR hMonitor{};
+	static MONITORINFOEX monitorInfo{};
+
+	if (state == m_FullscreenState)
+		return;
+
+	m_FullscreenState = state;
 
     switch (state)
     {
     case WindowFullscreenState::None:
-        SDL_SetWindowFullscreen(m_pWindow, 0);
+		// Store the current window dimensions so they can be restored when switching out of fullscreen state.
+		::GetWindowRect(m_WindowHandle, &m_WindowRect);
+
+		// Set the window style to a borderless window so the client area fills the entire screen.
+		windowStyle = WS_OVERLAPPEDWINDOW & ~(WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+
+		::SetWindowLongW(m_WindowHandle, GWL_STYLE, windowStyle);
+
+		// Query the name of the nearest display device for the window.
+		// This is required to set the fullscreen dimensions of the window when using a multi-monitor setup.
+		hMonitor = ::MonitorFromWindow(m_WindowHandle, MONITOR_DEFAULTTONEAREST);
+		
+		monitorInfo.cbSize = sizeof(MONITORINFOEX);
+		::GetMonitorInfo(hMonitor, &monitorInfo);
+
+		::SetWindowPos(m_WindowHandle, HWND_TOP,
+			monitorInfo.rcMonitor.left,
+			monitorInfo.rcMonitor.top,
+			monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+			monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+			SWP_FRAMECHANGED | SWP_NOACTIVATE);
+
+		::ShowWindow(m_WindowHandle, SW_MAXIMIZE);
 	    break;
 
     case WindowFullscreenState::Borderless:
-        if (!(SDL_GetWindowFlags(m_pWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP))
-			SDL_SetWindowFullscreen(m_pWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+		// Restore all the window decorators.
+		::SetWindowLong(m_WindowHandle, GWL_STYLE, WS_OVERLAPPEDWINDOW);
+
+		::SetWindowPos(m_WindowHandle, HWND_NOTOPMOST,
+			m_WindowRect.left,
+			m_WindowRect.top,
+			m_WindowRect.right - m_WindowRect.left,
+			m_WindowRect.bottom - m_WindowRect.top,
+			SWP_FRAMECHANGED | SWP_NOACTIVATE);
+
+		::ShowWindow(m_WindowHandle, SW_NORMAL);
 	    break;
 
-    case WindowFullscreenState::Fullscreen:
-        if (!(SDL_GetWindowFlags(m_pWindow) & SDL_WINDOW_FULLSCREEN))
-			SDL_SetWindowFullscreen(m_pWindow, SDL_WINDOW_FULLSCREEN);
-	    break;
+    /*case WindowFullscreenState::Fullscreen:
+    	break;*/
     }
 }
 
-WindowManager::WindowFullscreenState WindowManager::GetFullscreenState() const
+WindowFullscreenState WindowManager::GetFullscreenState() const
 {
-	switch (const Uint32 fullscreenFlag = SDL_GetWindowFlags(m_pWindow))
-	{
-	case SDL_WINDOW_FULLSCREEN:
-        return WindowFullscreenState::Fullscreen;
+	return m_FullscreenState;
+}
 
-	case SDL_WINDOW_FULLSCREEN_DESKTOP:
-        return WindowFullscreenState::Borderless;
+void WindowManager::UpdateWindowRect(RECT rect)
+{
+	if (!m_IsInitialized)
+		return;
 
-    default:
-        return WindowFullscreenState::None;
-	}
+	m_WindowRect = rect;
+	m_ActualWindowWidth = m_WindowRect.right - m_WindowRect.left;
+	m_ActualWindowHeight = m_WindowRect.bottom - m_WindowRect.top;
 }

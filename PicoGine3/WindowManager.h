@@ -22,8 +22,6 @@ public:
 	void SetFullscreenState(WindowFullscreenState state);
 	[[nodiscard]] WindowFullscreenState GetFullscreenState() const;
 
-	//void UpdateWindowRect(RECT rect);
-
 private:
 	bool m_IsInitialized;
 

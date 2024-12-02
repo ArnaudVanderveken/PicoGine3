@@ -89,11 +89,6 @@ HWND WindowManager::GetHWnd() const
 
 void WindowManager::SetFullscreenState(WindowFullscreenState state)
 {
-	// Moved outside of switch to suppress warning
-	//static LONG windowStyle{};
-	//static HMONITOR hMonitor{};
-	//static MONITORINFOEX monitorInfo{};
-
 	if (state == m_FullscreenState)
 		return;
 
@@ -155,18 +150,11 @@ WindowFullscreenState WindowManager::GetFullscreenState() const
 
 LRESULT WindowManager::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	//static RECT clientRect{}; //Moved outside of switch to suppress warning
-
 	switch (message)
 	{
 	case WM_DESTROY:
 		::PostQuitMessage(0);
 		return 0;
-
-	//case WM_SIZE:
-	//	//::GetClientRect(hWnd, &clientRect);
-
-	//	break;
 
 	case WM_LBUTTONDOWN:
 		InputManager::Get().KeyDown(KC_MOUSE1);

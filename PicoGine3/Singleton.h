@@ -4,42 +4,23 @@
 #include <mutex>
 
 template <typename T>
-class Singleton {
+class Singleton
+{
 public:
-    // Delete copy/move constructor and assignment operator to prevent copies/moves
-    Singleton(const Singleton&) = delete;
-    Singleton(Singleton&&) = delete;
-    Singleton& operator=(const Singleton&) = delete;
-    Singleton& operator=(Singleton&&) = delete;
+	static T& Get()
+	{
+		static T instance{};
+		return instance;
+	}
 
-    // Access to the Singleton instance
-    static T& Get() {
-        std::call_once(initFlag, []() {
-            instance = new T();
-            std::atexit(&Destroy);
-            });
-        return *instance;
-    }
+	virtual ~Singleton() = default;
+	Singleton(const Singleton& other) noexcept = delete;
+	Singleton(Singleton&& other) noexcept = delete;
+	Singleton& operator=(const Singleton& other) noexcept = delete;
+	Singleton& operator=(Singleton&& other) noexcept = delete;
 
 protected:
-    // Protected constructor to prevent direct instantiation
-    Singleton() = default;
-    virtual ~Singleton() = default;
-
-private:
-    static void Destroy() {
-        delete instance;
-        instance = nullptr;
-    }
-
-    static T* instance;
-    static std::once_flag initFlag;
+	Singleton() = default;
 };
-
-template <typename T>
-T* Singleton<T>::instance = nullptr;
-
-template <typename T>
-std::once_flag Singleton<T>::initFlag;
 
 #endif // SINGLETON_H

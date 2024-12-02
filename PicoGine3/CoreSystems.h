@@ -15,8 +15,6 @@ public:
 	CoreSystems(CoreSystems&&) noexcept = delete;
 	CoreSystems& operator=(CoreSystems&&) noexcept = delete;
 
-	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-
 	[[nodiscard]] static bool IsInitialized();
 
 	[[nodiscard]] HINSTANCE GetAppHinstance() const;

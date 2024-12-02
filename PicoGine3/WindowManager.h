@@ -22,7 +22,7 @@ public:
 	void SetFullscreenState(WindowFullscreenState state);
 	[[nodiscard]] WindowFullscreenState GetFullscreenState() const;
 
-	void UpdateWindowRect(RECT rect);
+	//void UpdateWindowRect(RECT rect);
 
 private:
 	bool m_IsInitialized;
@@ -34,5 +34,7 @@ private:
 	RECT m_WindowRect;
 	int m_ActualWindowWidth;
 	int m_ActualWindowHeight;
+
+	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 };
 

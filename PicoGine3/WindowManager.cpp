@@ -2,6 +2,7 @@
 #include "WindowManager.h"
 
 #include "CoreSystems.h"
+#include "InputManager.h"
 #include "Settings.h"
 
 
@@ -23,26 +24,26 @@ WindowManager::WindowManager():
 	windowClass.hIcon = nullptr;
 	windowClass.hbrBackground = nullptr;
 	windowClass.style = CS_HREDRAW | CS_VREDRAW;
-	windowClass.lpfnWndProc = CoreSystems::WindowProc;
+	windowClass.lpfnWndProc = WindowProc;
 	windowClass.hInstance = core.GetAppHinstance();
 	windowClass.lpszClassName = m_pWindowClassName;
 
-	if (!RegisterClass(&windowClass))
-		HANDLE_ERROR(HRESULT_FROM_WIN32(GetLastError()))
+	if (!::RegisterClass(&windowClass))
+		HANDLE_ERROR(::HRESULT_FROM_WIN32(::GetLastError()))
 
 	//Create Window
 	m_WindowRect = { 0, 0, settings.GetDesiredResolution().x, settings.GetDesiredResolution().y };
-	AdjustWindowRect(&m_WindowRect, WS_OVERLAPPEDWINDOW, false);
-	m_ActualWindowWidth = m_WindowRect.right - m_WindowRect.left;
-	m_ActualWindowHeight = m_WindowRect.bottom - m_WindowRect.top;
+	::AdjustWindowRect(&m_WindowRect, WS_OVERLAPPEDWINDOW, false);
+	const auto actualWindowWidth = m_WindowRect.right - m_WindowRect.left;
+	const auto actualWindowHeight = m_WindowRect.bottom - m_WindowRect.top;
 
 	m_WindowHandle = CreateWindow(m_pWindowClassName,
 		settings.GetWindowName(),
 		WS_OVERLAPPEDWINDOW,
 		0,
 		0,
-		m_ActualWindowWidth,
-		m_ActualWindowHeight,
+		actualWindowWidth,
+		actualWindowHeight,
 		NULL,
 		nullptr,
 		core.GetAppHinstance(),
@@ -50,14 +51,24 @@ WindowManager::WindowManager():
 	);
 
 	if (!m_WindowHandle)
-		HANDLE_ERROR(HRESULT_FROM_WIN32(GetLastError()))
+		HANDLE_ERROR(::HRESULT_FROM_WIN32(::GetLastError()))
 
-	m_IsInitialized = true;
+	// Center window
+	// Query the name of the nearest display device for the window.
+	const HMONITOR hMonitor { ::MonitorFromWindow(m_WindowHandle, MONITOR_DEFAULTTONEAREST) };
+	MONITORINFOEX monitorInfo{};
+	monitorInfo.cbSize = sizeof(MONITORINFOEX);
+	::GetMonitorInfo(hMonitor, &monitorInfo);
+
+	const auto left = (monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left) / 2 - (settings.GetDesiredResolution().x / 2);
+	const auto top = (monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top) / 2 - (settings.GetDesiredResolution().y / 2);
+
+	::SetWindowPos(m_WindowHandle, nullptr, left, top, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
 
 	//Show The Window
-	ShowWindow(m_WindowHandle, SW_SHOWDEFAULT);
+	::ShowWindow(m_WindowHandle, SW_SHOWDEFAULT);
 
-	
+	m_IsInitialized = true;
 }
 
 WindowManager::~WindowManager()
@@ -79,9 +90,9 @@ HWND WindowManager::GetHWnd() const
 void WindowManager::SetFullscreenState(WindowFullscreenState state)
 {
 	// Moved outside of switch to suppress warning
-	static LONG windowStyle{};
-	static HMONITOR hMonitor{};
-	static MONITORINFOEX monitorInfo{};
+	//static LONG windowStyle{};
+	//static HMONITOR hMonitor{};
+	//static MONITORINFOEX monitorInfo{};
 
 	if (state == m_FullscreenState)
 		return;
@@ -90,19 +101,21 @@ void WindowManager::SetFullscreenState(WindowFullscreenState state)
 
     switch (state)
     {
-    case WindowFullscreenState::None:
+	case WindowFullscreenState::None:
+	{
 		// Store the current window dimensions so they can be restored when switching out of fullscreen state.
 		::GetWindowRect(m_WindowHandle, &m_WindowRect);
 
 		// Set the window style to a borderless window so the client area fills the entire screen.
-		windowStyle = WS_OVERLAPPEDWINDOW & ~(WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+		constexpr LONG windowStyle{ WS_OVERLAPPEDWINDOW & ~(WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX) };
 
 		::SetWindowLongW(m_WindowHandle, GWL_STYLE, windowStyle);
 
 		// Query the name of the nearest display device for the window.
 		// This is required to set the fullscreen dimensions of the window when using a multi-monitor setup.
-		hMonitor = ::MonitorFromWindow(m_WindowHandle, MONITOR_DEFAULTTONEAREST);
-		
+		const HMONITOR hMonitor{ ::MonitorFromWindow(m_WindowHandle, MONITOR_DEFAULTTONEAREST) };
+
+		MONITORINFOEX monitorInfo{};
 		monitorInfo.cbSize = sizeof(MONITORINFOEX);
 		::GetMonitorInfo(hMonitor, &monitorInfo);
 
@@ -114,8 +127,8 @@ void WindowManager::SetFullscreenState(WindowFullscreenState state)
 			SWP_FRAMECHANGED | SWP_NOACTIVATE);
 
 		::ShowWindow(m_WindowHandle, SW_MAXIMIZE);
-	    break;
-
+		break;
+	}
     case WindowFullscreenState::Borderless:
 		// Restore all the window decorators.
 		::SetWindowLong(m_WindowHandle, GWL_STYLE, WS_OVERLAPPEDWINDOW);
@@ -140,12 +153,69 @@ WindowFullscreenState WindowManager::GetFullscreenState() const
 	return m_FullscreenState;
 }
 
-void WindowManager::UpdateWindowRect(RECT rect)
+LRESULT WindowManager::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	if (!m_IsInitialized)
-		return;
+	//static RECT clientRect{}; //Moved outside of switch to suppress warning
 
-	m_WindowRect = rect;
-	m_ActualWindowWidth = m_WindowRect.right - m_WindowRect.left;
-	m_ActualWindowHeight = m_WindowRect.bottom - m_WindowRect.top;
+	switch (message)
+	{
+	case WM_DESTROY:
+		::PostQuitMessage(0);
+		return 0;
+
+	//case WM_SIZE:
+	//	//::GetClientRect(hWnd, &clientRect);
+
+	//	break;
+
+	case WM_LBUTTONDOWN:
+		InputManager::Get().KeyDown(KC_MOUSE1);
+		break;
+
+	case WM_LBUTTONUP:
+		InputManager::Get().KeyUp(KC_MOUSE1);
+		break;
+
+	case WM_RBUTTONDOWN:
+		InputManager::Get().KeyDown(KC_MOUSE2);
+		break;
+
+	case WM_RBUTTONUP:
+		InputManager::Get().KeyUp(KC_MOUSE2);
+		break;
+
+	case WM_MBUTTONDOWN:
+		InputManager::Get().KeyDown(KC_MOUSE3);
+		break;
+
+	case WM_MBUTTONUP:
+		InputManager::Get().KeyUp(KC_MOUSE3);
+		break;
+
+	case WM_XBUTTONDOWN:
+		InputManager::Get().KeyDown(wParam >> 16 == 1 ? KC_MOUSE4 : KC_MOUSE5);
+		break;
+
+	case WM_XBUTTONUP:
+		InputManager::Get().KeyUp(wParam >> 16 == 1 ? KC_MOUSE4 : KC_MOUSE5);
+		break;
+
+	case WM_KEYDOWN:
+	case WM_SYSKEYDOWN:
+		InputManager::Get().KeyDown(static_cast<Keycode>(wParam));
+		break;
+
+	case WM_KEYUP:
+	case WM_SYSKEYUP:
+		InputManager::Get().KeyUp(static_cast<Keycode>(wParam));
+		break;
+
+	case WM_SYSCHAR:
+		break;
+
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+
+	return 0;
 }

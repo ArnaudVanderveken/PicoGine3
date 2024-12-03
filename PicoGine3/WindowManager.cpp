@@ -96,7 +96,7 @@ void WindowManager::SetFullscreenState(WindowFullscreenState state)
 
     switch (state)
     {
-	case WindowFullscreenState::None:
+	case WindowFullscreenState::Borderless:
 	{
 		// Store the current window dimensions so they can be restored when switching out of fullscreen state.
 		::GetWindowRect(m_WindowHandle, &m_WindowRect);
@@ -124,7 +124,7 @@ void WindowManager::SetFullscreenState(WindowFullscreenState state)
 		::ShowWindow(m_WindowHandle, SW_MAXIMIZE);
 		break;
 	}
-    case WindowFullscreenState::Borderless:
+    case WindowFullscreenState::None:
 		// Restore all the window decorators.
 		::SetWindowLong(m_WindowHandle, GWL_STYLE, WS_OVERLAPPEDWINDOW);
 
@@ -156,46 +156,8 @@ LRESULT WindowManager::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 		::PostQuitMessage(0);
 		return 0;
 
-	case WM_LBUTTONDOWN:
-		InputManager::Get().KeyDown(KC_MOUSE1);
-		break;
-
-	case WM_LBUTTONUP:
-		InputManager::Get().KeyUp(KC_MOUSE1);
-		break;
-
-	case WM_RBUTTONDOWN:
-		InputManager::Get().KeyDown(KC_MOUSE2);
-		break;
-
-	case WM_RBUTTONUP:
-		InputManager::Get().KeyUp(KC_MOUSE2);
-		break;
-
-	case WM_MBUTTONDOWN:
-		InputManager::Get().KeyDown(KC_MOUSE3);
-		break;
-
-	case WM_MBUTTONUP:
-		InputManager::Get().KeyUp(KC_MOUSE3);
-		break;
-
-	case WM_XBUTTONDOWN:
-		InputManager::Get().KeyDown(wParam >> 16 == 1 ? KC_MOUSE4 : KC_MOUSE5);
-		break;
-
-	case WM_XBUTTONUP:
-		InputManager::Get().KeyUp(wParam >> 16 == 1 ? KC_MOUSE4 : KC_MOUSE5);
-		break;
-
-	case WM_KEYDOWN:
-	case WM_SYSKEYDOWN:
-		InputManager::Get().KeyDown(static_cast<Keycode>(wParam));
-		break;
-
-	case WM_KEYUP:
-	case WM_SYSKEYUP:
-		InputManager::Get().KeyUp(static_cast<Keycode>(wParam));
+	case WM_INPUT:
+		InputManager::Get().ProcessRawInput(reinterpret_cast<HRAWINPUT>(lParam));
 		break;
 
 	case WM_SYSCHAR:

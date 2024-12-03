@@ -15,11 +15,16 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 /* --- DirectXMath --- */
 #include <DirectXMath.h>
 #include <DirectXColors.h>
 using namespace DirectX;
+
+/* --- XInput --- */
+#include <Xinput.h>
+#pragma comment(lib, "Xinput.lib")
 
 /* --- 3RD PARTY --- */
 

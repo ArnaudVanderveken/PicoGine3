@@ -1,7 +1,7 @@
 #ifndef KEYCODES_H
 #define KEYCODES_H
 
-enum Keycode : unsigned char
+enum KeyCode : BYTE
 {
 	KC_MOUSE1 = 0x01,
 	KC_MOUSE2 = 0x02,
@@ -133,6 +133,25 @@ enum Keycode : unsigned char
 	KC_BACKSLASH = 0xDC,
 	KC_BRACKETS_CLOSE = 0xDD,
 	KC_QUOTE = 0xDE,
+};
+
+enum ControllerCode
+{
+	GP_DPAD_UP = 0,
+	GP_DPAD_DOWN = 1,
+	GP_DPAD_LEFT = 2,
+	GP_DPAD_RIGHT = 3,
+	GP_START = 4,
+	GP_BACK = 5,
+	GP_LEFT_THUMB = 6,
+	GP_RIGHT_THUMB = 7,
+	GP_LEFT_SHOULDER = 8,
+	GP_RIGHT_SHOULDER = 9,
+	GP_A = 12,
+	GP_B = 13,
+	GP_X = 14,
+	GP_Y = 15,
+	GP_COUNT = 16
 };
 
 #endif //KEYCODES_H

@@ -5,7 +5,7 @@ Settings::Settings() :
 	m_IsInitialized{ true },
 	m_DesiredResolution{ 1920, 1080 },
 	m_VSync{ false },
-	m_WindowFullscreenState{ WindowFullscreenState::None }
+	m_WindowFullscreenStartState{ WindowFullscreenState::None }
 {
 }
 
@@ -29,7 +29,12 @@ bool Settings::GetVSync() const
 	return m_VSync;
 }
 
-WindowFullscreenState Settings::GetWindowFullscreenState() const
+WindowFullscreenState Settings::GetWindowFullscreenStartState() const
 {
-	return m_WindowFullscreenState;
+	return m_WindowFullscreenStartState;
+}
+
+void Settings::SetVSync(bool value)
+{
+	m_VSync = value;
 }

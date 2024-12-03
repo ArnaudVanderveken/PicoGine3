@@ -21,7 +21,9 @@ public:
 	[[nodiscard]] const wchar_t* GetWindowName() const;
 	[[nodiscard]] const XMINT2& GetDesiredResolution() const;
 	[[nodiscard]] bool GetVSync() const;
-	[[nodiscard]] WindowFullscreenState GetWindowFullscreenState() const;
+	[[nodiscard]] WindowFullscreenState GetWindowFullscreenStartState() const;
+
+	void SetVSync(bool value);
 
 private:
 	bool m_IsInitialized;
@@ -40,7 +42,7 @@ private:
 
 	XMINT2 m_DesiredResolution;
 	bool m_VSync;
-	WindowFullscreenState m_WindowFullscreenState;
+	WindowFullscreenState m_WindowFullscreenStartState;
 
 };
 

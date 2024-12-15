@@ -2,6 +2,7 @@
 #include "CoreSystems.h"
 
 #include "InputManager.h"
+#include "Renderer.h"
 #include "Settings.h"
 #include "WindowManager.h"
 
@@ -15,7 +16,8 @@ bool CoreSystems::IsInitialized()
 {
 	return Settings::Get().IsInitialized()
 		&& WindowManager::Get().IsInitialized()
-		&& InputManager::Get().IsInitialized();
+		&& InputManager::Get().IsInitialized()
+		&& Renderer::Get().IsInitialized();
 }
 
 HINSTANCE CoreSystems::GetAppHinstance() const

@@ -43,7 +43,7 @@ private:
 
 	VkInstance m_VkInstance;
 
-	bool CreateVkInstance();
+	void CreateVkInstance();
 };
 
 #endif

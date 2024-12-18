@@ -18,9 +18,7 @@ GraphicsAPI::~GraphicsAPI()
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false }
 {
-	if (!CreateVkInstance())
-        return;
-	
+    CreateVkInstance();
 
 	m_IsInitialized = true;
 }
@@ -30,7 +28,7 @@ GraphicsAPI::~GraphicsAPI()
     vkDestroyInstance(m_VkInstance, nullptr);
 }
 
-bool GraphicsAPI::CreateVkInstance()
+void GraphicsAPI::CreateVkInstance()
 {
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -59,17 +57,18 @@ bool GraphicsAPI::CreateVkInstance()
 
     for (const auto& requiredExtension : requiredExtensions)
     {
+        bool found = false;
         for (const auto& extension : extensions) {
             if (strcmp(extension.extensionName, requiredExtension) == 0)
             {
                 instanceExtensions.emplace_back(requiredExtension);
+                found = true;
+                break;
             }
         }
+        if (!found)
+			Logger::Get().LogError(std::wstring(L"Vk Instance Extension not found: ") + std::wstring(requiredExtension, requiredExtension + strlen(requiredExtension)));
     }
-
-    // Check if all required extensions were found
-    if (instanceExtensions.size() != requiredExtensions.size())
-        return false;
 
     // Optional extensions
     const std::vector<const char*> optionalExtensions = {};
@@ -92,8 +91,6 @@ bool GraphicsAPI::CreateVkInstance()
     createInfo.enabledLayerCount = 0;
 
     CHECK_VK_ERROR(vkCreateInstance(&createInfo, nullptr, &m_VkInstance));
-
-    return true;
 }
 
 #endif

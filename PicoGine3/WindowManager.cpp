@@ -28,12 +28,11 @@ WindowManager::WindowManager():
 	windowClass.hInstance = core.GetAppHinstance();
 	windowClass.lpszClassName = m_pWindowClassName;
 
-	if (!::RegisterClass(&windowClass))
-		HANDLE_ERROR(::HRESULT_FROM_WIN32(::GetLastError()))
+	HandleNonHrWin32(::RegisterClass(&windowClass));
 
 	//Create Window
 	m_WindowRect = { 0, 0, settings.GetDesiredResolution().x, settings.GetDesiredResolution().y };
-	::AdjustWindowRect(&m_WindowRect, WS_OVERLAPPEDWINDOW, false);
+	HandleNonHrWin32(::AdjustWindowRect(&m_WindowRect, WS_OVERLAPPEDWINDOW, false));
 	const auto actualWindowWidth = m_WindowRect.right - m_WindowRect.left;
 	const auto actualWindowHeight = m_WindowRect.bottom - m_WindowRect.top;
 
@@ -50,31 +49,30 @@ WindowManager::WindowManager():
 		this
 	);
 
-	if (!m_WindowHandle)
-		HANDLE_ERROR(::HRESULT_FROM_WIN32(::GetLastError()))
+	HandleNonHrWin32(m_WindowHandle != NULL);
 
 	// Center window
 	// Query the name of the nearest display device for the window.
 	const HMONITOR hMonitor { ::MonitorFromWindow(m_WindowHandle, MONITOR_DEFAULTTONEAREST) };
 	MONITORINFOEX monitorInfo{};
 	monitorInfo.cbSize = sizeof(MONITORINFOEX);
-	::GetMonitorInfo(hMonitor, &monitorInfo);
+	HandleNonHrWin32(::GetMonitorInfo(hMonitor, &monitorInfo));
 
 	const auto left = (monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left) / 2 - (settings.GetDesiredResolution().x / 2);
 	const auto top = (monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top) / 2 - (settings.GetDesiredResolution().y / 2);
 
-	::SetWindowPos(m_WindowHandle, nullptr, left, top, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+	HandleNonHrWin32(::SetWindowPos(m_WindowHandle, nullptr, left, top, 0, 0, SWP_NOZORDER | SWP_NOSIZE));
 
 	//Show The Window
-	::ShowWindow(m_WindowHandle, SW_SHOWDEFAULT);
+	HandleNonHrWin32(::ShowWindow(m_WindowHandle, SW_SHOWDEFAULT));
 
 	m_IsInitialized = true;
 }
 
 WindowManager::~WindowManager()
 {
-	DestroyWindow(m_WindowHandle);
-	UnregisterClass(m_pWindowClassName, CoreSystems::Get().GetAppHinstance());
+	HandleNonHrWin32(DestroyWindow(m_WindowHandle));
+	HandleNonHrWin32(UnregisterClass(m_pWindowClassName, CoreSystems::Get().GetAppHinstance()));
 }
 
 bool WindowManager::IsInitialized() const
@@ -99,7 +97,7 @@ void WindowManager::SetFullscreenState(WindowFullscreenState state)
 	case WindowFullscreenState::Borderless:
 	{
 		// Store the current window dimensions so they can be restored when switching out of fullscreen state.
-		::GetWindowRect(m_WindowHandle, &m_WindowRect);
+		HandleNonHrWin32(::GetWindowRect(m_WindowHandle, &m_WindowRect));
 
 		// Set the window style to a borderless window so the client area fills the entire screen.
 		constexpr LONG windowStyle{ WS_OVERLAPPEDWINDOW & ~(WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX) };
@@ -112,30 +110,30 @@ void WindowManager::SetFullscreenState(WindowFullscreenState state)
 
 		MONITORINFOEX monitorInfo{};
 		monitorInfo.cbSize = sizeof(MONITORINFOEX);
-		::GetMonitorInfo(hMonitor, &monitorInfo);
+		HandleNonHrWin32(::GetMonitorInfo(hMonitor, &monitorInfo));
 
-		::SetWindowPos(m_WindowHandle, HWND_TOP,
+		HandleNonHrWin32(::SetWindowPos(m_WindowHandle, HWND_TOP,
 			monitorInfo.rcMonitor.left,
 			monitorInfo.rcMonitor.top,
 			monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
 			monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
-			SWP_FRAMECHANGED | SWP_NOACTIVATE);
+			SWP_FRAMECHANGED | SWP_NOACTIVATE));
 
-		::ShowWindow(m_WindowHandle, SW_MAXIMIZE);
+		HandleNonHrWin32(::ShowWindow(m_WindowHandle, SW_MAXIMIZE));
 		break;
 	}
     case WindowFullscreenState::None:
 		// Restore all the window decorators.
 		::SetWindowLong(m_WindowHandle, GWL_STYLE, WS_OVERLAPPEDWINDOW);
 
-		::SetWindowPos(m_WindowHandle, HWND_NOTOPMOST,
+		HandleNonHrWin32(::SetWindowPos(m_WindowHandle, HWND_NOTOPMOST,
 			m_WindowRect.left,
 			m_WindowRect.top,
 			m_WindowRect.right - m_WindowRect.left,
 			m_WindowRect.bottom - m_WindowRect.top,
-			SWP_FRAMECHANGED | SWP_NOACTIVATE);
+			SWP_FRAMECHANGED | SWP_NOACTIVATE));
 
-		::ShowWindow(m_WindowHandle, SW_NORMAL);
+		HandleNonHrWin32(::ShowWindow(m_WindowHandle, SW_NORMAL));
 	    break;
 
     /*case WindowFullscreenState::Fullscreen:

@@ -90,7 +90,7 @@ void GraphicsAPI::CreateVkInstance()
 
     createInfo.enabledLayerCount = 0;
 
-    CHECK_VK_ERROR(vkCreateInstance(&createInfo, nullptr, &m_VkInstance));
+    HandleVkResult(vkCreateInstance(&createInfo, nullptr, &m_VkInstance));
 }
 
 #endif

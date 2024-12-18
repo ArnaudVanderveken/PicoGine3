@@ -29,6 +29,12 @@ void Logger::LogWarning(const std::wstring& logString, const std::source_locatio
 void Logger::LogError(const std::wstring& logString, const std::source_location& sourceLocation)
 {
 	ProcessLog(LogLevel::Error, logString, sourceLocation);
+
+#if defined(_DEBUG)
+	DebugBreak();
+#else
+	exit(1);
+#endif //_DEBUG
 }
 
 void Logger::LogError(HRESULT hres, const std::source_location& sourceLocation)
@@ -38,6 +44,12 @@ void Logger::LogError(HRESULT hres, const std::source_location& sourceLocation)
 	logStream << L"[HRESULT 0x" << std::hex << hres << L"] " << err.ErrorMessage() << L'\n';
 
 	ProcessLog(LogLevel::Error, logStream.str(), sourceLocation);
+
+#if defined(_DEBUG)
+	DebugBreak();
+#else
+	exit(hres);
+#endif //_DEBUG
 }
 
 void Logger::LogTodo(const std::wstring& logString, const std::source_location& sourceLocation)
@@ -72,14 +84,13 @@ void Logger::ProcessLog(LogLevel level, const std::wstring& logString, const std
 
 	// Add log entry
 	std::wstringstream logEntry{};
-	logEntry << L"[" << st.wYear << L"-" << st.wMonth << L"-" << st.wDay << L"|";
-	logEntry << st.wHour << L":" << st.wMinute << L":" << st.wSecond << L"]";
+	logEntry << L"[" << st.wYear << L"-" << st.wMonth << L"-" << st.wDay << L" | ";
+	logEntry << std::setw(2) << std::setfill(L'0') << st.wHour << L":" << std::setw(2) << std::setfill(L'0') << st.wMinute << L":" << std::setw(2) << std::setfill(L'0') << st.wSecond << L"]";
 	logEntry << std::format(L"[{}] {}:{}\n -> {}\n", levelStr, filename, lineNumber, logString);
 	m_OutputStream << logEntry.str();
 	m_OutputStream.flush();
 
 	if (level == LogLevel::Error)
-	{
 		MessageBox(nullptr, logEntry.str().c_str(), L"ERROR", MB_OK | MB_ICONERROR);
-	}
+
 }

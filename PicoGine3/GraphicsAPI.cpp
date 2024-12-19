@@ -24,6 +24,8 @@ GraphicsAPI::GraphicsAPI() :
     SetupDebugMessenger();
 #endif //defined(_DEBUG)
 
+    SelectPhysicalDevice();
+
 	m_IsInitialized = true;
 }
 
@@ -149,6 +151,58 @@ void GraphicsAPI::CreateVkInstance()
     HandleVkResult(vkCreateInstance(&createInfo, nullptr, &m_VkInstance));
 }
 
+void GraphicsAPI::SelectPhysicalDevice()
+{
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(m_VkInstance, &deviceCount, nullptr);
+
+    if (deviceCount == 0)
+        Logger::Get().LogError(L"Failed to find any physical device with Vulkan support!");
+
+    std::vector<VkPhysicalDevice> devices(deviceCount);
+    vkEnumeratePhysicalDevices(m_VkInstance, &deviceCount, devices.data());
+
+    // Use an ordered map to automatically sort candidates by increasing score
+    std::multimap<int, VkPhysicalDevice> candidates;
+
+    for (const auto& device : devices) {
+        int score = GradeDevice(device);
+        candidates.insert(std::make_pair(score, device));
+    }
+
+    // Check if the best candidate is suitable at all
+    if (candidates.rbegin()->first > 0)
+        m_VkPhysicalDevice = candidates.rbegin()->second;
+    
+    else
+        Logger::Get().LogError(L"Failed to find any suitable physical device.");
+    
+}
+
+int GraphicsAPI::GradeDevice(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceProperties deviceProperties;
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    int score = 0;
+
+    // Discrete GPUs have a significant performance advantage
+    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+        score += 1000;
+
+    // Maximum possible size of textures affects graphics quality
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    // Application can't function without geometry shaders
+    if (!deviceFeatures.geometryShader) {
+        return 0;
+    }
+
+    return score;
+}
+
 #if defined(_DEBUG)
 
 VKAPI_ATTR VkBool32 VKAPI_CALL GraphicsAPI::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT /*messageType*/, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* /*pUserData*/)
@@ -192,12 +246,12 @@ void GraphicsAPI::SetupDebugMessenger()
     VkDebugUtilsMessengerCreateInfoEXT createInfo;
     PopulateDebugMessengerCreateInfo(createInfo);
 
-    HandleVkResult(CreateDebugUtilsMessengerEXT(m_VkInstance, &createInfo, nullptr, &m_DebugMessenger));
+    HandleVkResult(CreateDebugUtilsMessengerEXT(m_VkInstance, &createInfo, nullptr, &m_VkDebugMessenger));
 }
 
 void GraphicsAPI::CleanupDebugMessenger() const
 {
-    DestroyDebugUtilsMessengerEXT(m_VkInstance, m_DebugMessenger, nullptr);
+    DestroyDebugUtilsMessengerEXT(m_VkInstance, m_VkDebugMessenger, nullptr);
 }
 
 #endif //defined(_DEBUG)

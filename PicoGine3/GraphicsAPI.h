@@ -42,11 +42,14 @@ private:
 	bool m_IsInitialized;
 
 	VkInstance m_VkInstance;
+	VkPhysicalDevice m_VkPhysicalDevice;
 
 	void CreateVkInstance();
+	void SelectPhysicalDevice();
+	static int GradeDevice(VkPhysicalDevice device);
 
 #if defined(_DEBUG)
-	VkDebugUtilsMessengerEXT m_DebugMessenger;
+	VkDebugUtilsMessengerEXT m_VkDebugMessenger;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 	static void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);

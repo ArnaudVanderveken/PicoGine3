@@ -14,6 +14,7 @@
 #include <array>
 #include <iostream>
 #include <memory>
+#include <map>
 #include <string>
 #include <vector>
 

@@ -20,11 +20,19 @@ GraphicsAPI::GraphicsAPI() :
 {
     CreateVkInstance();
 
+#if defined(_DEBUG)
+    SetupDebugMessenger();
+#endif //defined(_DEBUG)
+
 	m_IsInitialized = true;
 }
 
 GraphicsAPI::~GraphicsAPI()
 {
+#if defined(_DEBUG)
+    CleanupDebugMessenger();
+#endif //defined(_DEBUG)
+
     vkDestroyInstance(m_VkInstance, nullptr);
 }
 
@@ -43,6 +51,7 @@ void GraphicsAPI::CreateVkInstance()
     createInfo.pApplicationInfo = &appInfo;
 
 #if defined(_DEBUG)
+
     uint32_t layerCount;
     vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
     std::vector<VkLayerProperties> availableLayers(layerCount);
@@ -67,6 +76,7 @@ void GraphicsAPI::CreateVkInstance()
         if (!layerFound)
             Logger::Get().LogError(std::wstring(L"Validation layer not found: ") + StrUtils::cstr2stdwstr(layerName));
     }
+
 #endif //defined(_DEBUG)
 
     uint32_t extensionCount{};
@@ -79,7 +89,10 @@ void GraphicsAPI::CreateVkInstance()
     // Required extensions
     const std::vector<const char*> requiredExtensions = {
         VK_KHR_SURFACE_EXTENSION_NAME,
-        VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+        VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+#if defined(_DEBUG)
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+#endif //defined(_DEBUG)
     };
 
     for (const auto& requiredExtension : requiredExtensions)
@@ -118,13 +131,75 @@ void GraphicsAPI::CreateVkInstance()
     createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
 #if defined(_DEBUG)
+
     createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
     createInfo.ppEnabledLayerNames = validationLayers.data();
+
+    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+    PopulateDebugMessengerCreateInfo(debugCreateInfo);
+    createInfo.pNext = &debugCreateInfo;
+
 #else
+
     createInfo.enabledLayerCount = 0;
+    createInfo.pNext = nullptr;
+
 #endif //defined(_DEBUG)
 
     HandleVkResult(vkCreateInstance(&createInfo, nullptr, &m_VkInstance));
 }
+
+#if defined(_DEBUG)
+
+VKAPI_ATTR VkBool32 VKAPI_CALL GraphicsAPI::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT /*messageType*/, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* /*pUserData*/)
+{
+    if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+		Logger::Get().LogWarning(StrUtils::cstr2stdwstr(pCallbackData->pMessage));
+
+    else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+        Logger::Get().LogError(StrUtils::cstr2stdwstr(pCallbackData->pMessage));
+
+    return VK_FALSE;
+}
+
+void GraphicsAPI::PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
+{
+    createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.pfnUserCallback = GraphicsAPI::DebugCallback;
+    createInfo.pUserData = nullptr; // Optional
+}
+
+VkResult GraphicsAPI::CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger)
+{
+    if (const auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"); func != nullptr)
+        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+}
+
+void GraphicsAPI::DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator)
+{
+    if (const auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"); func != nullptr)
+        func(instance, debugMessenger, pAllocator);
+    
+}
+
+void GraphicsAPI::SetupDebugMessenger()
+{
+    VkDebugUtilsMessengerCreateInfoEXT createInfo;
+    PopulateDebugMessengerCreateInfo(createInfo);
+
+    HandleVkResult(CreateDebugUtilsMessengerEXT(m_VkInstance, &createInfo, nullptr, &m_DebugMessenger));
+}
+
+void GraphicsAPI::CleanupDebugMessenger() const
+{
+    DestroyDebugUtilsMessengerEXT(m_VkInstance, m_DebugMessenger, nullptr);
+}
+
+#endif //defined(_DEBUG)
 
 #endif

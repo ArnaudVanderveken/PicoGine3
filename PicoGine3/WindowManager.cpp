@@ -71,8 +71,8 @@ WindowManager::WindowManager():
 
 WindowManager::~WindowManager()
 {
-	HandleNonHrWin32(DestroyWindow(m_WindowHandle));
-	HandleNonHrWin32(UnregisterClass(m_pWindowClassName, CoreSystems::Get().GetAppHinstance()));
+	DestroyWindow(m_WindowHandle);
+	UnregisterClass(m_pWindowClassName, CoreSystems::Get().GetAppHinstance());
 }
 
 bool WindowManager::IsInitialized() const

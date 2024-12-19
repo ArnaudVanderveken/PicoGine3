@@ -42,6 +42,33 @@ void GraphicsAPI::CreateVkInstance()
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
+#if defined(_DEBUG)
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    const std::vector<const char*> validationLayers = {
+		"VK_LAYER_KHRONOS_validation"
+    };
+
+    for (const char* layerName : validationLayers)
+    {
+        bool layerFound = false;
+
+        for (const auto& layerProperties : availableLayers)
+        {
+            if (strcmp(layerName, layerProperties.layerName) == 0)
+            {
+                layerFound = true;
+                break;
+            }
+        }
+        if (!layerFound)
+            Logger::Get().LogError(std::wstring(L"Validation layer not found: ") + StrUtils::cstr2stdwstr(layerName));
+    }
+#endif //defined(_DEBUG)
+
     uint32_t extensionCount{};
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
     std::vector<VkExtensionProperties> extensions(extensionCount);
@@ -57,17 +84,18 @@ void GraphicsAPI::CreateVkInstance()
 
     for (const auto& requiredExtension : requiredExtensions)
     {
-        bool found = false;
-        for (const auto& extension : extensions) {
+        bool extensionFound = false;
+        for (const auto& extension : extensions)
+        {
             if (strcmp(extension.extensionName, requiredExtension) == 0)
             {
                 instanceExtensions.emplace_back(requiredExtension);
-                found = true;
+                extensionFound = true;
                 break;
             }
         }
-        if (!found)
-			Logger::Get().LogError(std::wstring(L"Vk Instance Extension not found: ") + std::wstring(requiredExtension, requiredExtension + strlen(requiredExtension)));
+        if (!extensionFound)
+			Logger::Get().LogError(std::wstring(L"Vk Instance Extension not found: ") + StrUtils::cstr2stdwstr(requiredExtension));
     }
 
     // Optional extensions
@@ -75,7 +103,8 @@ void GraphicsAPI::CreateVkInstance()
 
     for (const auto& optionalExtension : optionalExtensions)
     {
-        for (const auto& extension : extensions) {
+        for (const auto& extension : extensions)
+        {
             if (strcmp(extension.extensionName, optionalExtension) == 0)
             {
                 instanceExtensions.emplace_back(optionalExtension);
@@ -88,7 +117,12 @@ void GraphicsAPI::CreateVkInstance()
     createInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
     createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
+#if defined(_DEBUG)
+    createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+    createInfo.ppEnabledLayerNames = validationLayers.data();
+#else
     createInfo.enabledLayerCount = 0;
+#endif //defined(_DEBUG)
 
     HandleVkResult(vkCreateInstance(&createInfo, nullptr, &m_VkInstance));
 }

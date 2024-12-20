@@ -19,18 +19,20 @@ GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false }
 {
     CreateVkInstance();
-
 #if defined(_DEBUG)
     SetupDebugMessenger();
 #endif //defined(_DEBUG)
-
     SelectPhysicalDevice();
+    CreateLogicalDevice();
+    vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.graphicsFamily.value(), 0, &m_GraphicsQueue);
 
 	m_IsInitialized = true;
 }
 
 GraphicsAPI::~GraphicsAPI()
 {
+    vkDestroyDevice(m_VkDevice, nullptr);
+
 #if defined(_DEBUG)
     CleanupDebugMessenger();
 #endif //defined(_DEBUG)
@@ -59,11 +61,7 @@ void GraphicsAPI::CreateVkInstance()
     std::vector<VkLayerProperties> availableLayers(layerCount);
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-    const std::vector<const char*> validationLayers = {
-		"VK_LAYER_KHRONOS_validation"
-    };
-
-    for (const char* layerName : validationLayers)
+    for (const char* layerName : m_ValidationLayers)
     {
         bool layerFound = false;
 
@@ -88,16 +86,7 @@ void GraphicsAPI::CreateVkInstance()
 
     std::vector<const char*> instanceExtensions;
 
-    // Required extensions
-    const std::vector<const char*> requiredExtensions = {
-        VK_KHR_SURFACE_EXTENSION_NAME,
-        VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-#if defined(_DEBUG)
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif //defined(_DEBUG)
-    };
-
-    for (const auto& requiredExtension : requiredExtensions)
+    for (const auto& requiredExtension : m_RequiredInstanceExtensions)
     {
         bool extensionFound = false;
         for (const auto& extension : extensions)
@@ -113,10 +102,7 @@ void GraphicsAPI::CreateVkInstance()
 			Logger::Get().LogError(std::wstring(L"Vk Instance Extension not found: ") + StrUtils::cstr2stdwstr(requiredExtension));
     }
 
-    // Optional extensions
-    const std::vector<const char*> optionalExtensions = {};
-
-    for (const auto& optionalExtension : optionalExtensions)
+    for (const auto& optionalExtension : m_OptionalInstanceExtensions)
     {
         for (const auto& extension : extensions)
         {
@@ -134,8 +120,8 @@ void GraphicsAPI::CreateVkInstance()
 
 #if defined(_DEBUG)
 
-    createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-    createInfo.ppEnabledLayerNames = validationLayers.data();
+    createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
+    createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
 
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
     PopulateDebugMessengerCreateInfo(debugCreateInfo);
@@ -186,6 +172,9 @@ int GraphicsAPI::GradeDevice(VkPhysicalDevice device)
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
     vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
+    if (!FindQueueFamilies(device).IsComplete())
+        return 0;
+
     int score = 0;
 
     // Discrete GPUs have a significant performance advantage
@@ -201,6 +190,66 @@ int GraphicsAPI::GradeDevice(VkPhysicalDevice device)
     }
 
     return score;
+}
+
+QueueFamilyIndices GraphicsAPI::FindQueueFamilies(VkPhysicalDevice device)
+{
+    QueueFamilyIndices indices;
+
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+    int i{};
+    for (const auto& queueFamily : queueFamilies)
+    {
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            indices.graphicsFamily = i;
+
+        if (indices.IsComplete())
+            break;
+
+        ++i;
+    }
+
+    return indices;
+}
+
+void GraphicsAPI::CreateLogicalDevice()
+{
+    m_QueueFamilyIndices = FindQueueFamilies(m_VkPhysicalDevice);
+
+    VkDeviceQueueCreateInfo queueCreateInfo{};
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.queueFamilyIndex = m_QueueFamilyIndices.graphicsFamily.value();
+    queueCreateInfo.queueCount = 1;
+
+	constexpr float queuePriority{ 1.0f };
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+	const VkPhysicalDeviceFeatures deviceFeatures{};
+
+    VkDeviceCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+    createInfo.pQueueCreateInfos = &queueCreateInfo;
+    createInfo.queueCreateInfoCount = 1;
+
+    createInfo.pEnabledFeatures = &deviceFeatures;
+
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(m_DeviceExtensions.size());
+    createInfo.ppEnabledExtensionNames = m_DeviceExtensions.data();
+
+#if defined(_DEBUG)
+    createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
+    createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
+#else
+    createInfo.enabledLayerCount = 0;
+#endif //defined(_DEBUG)
+
+    HandleVkResult(vkCreateDevice(m_VkPhysicalDevice, &createInfo, nullptr, &m_VkDevice));
 }
 
 #if defined(_DEBUG)

@@ -1,5 +1,6 @@
 #ifndef GRAPHICSAPI_H
 #define GRAPHICSAPI_H
+#include <optional>
 
 #if defined(_DX12)
 
@@ -26,6 +27,15 @@ private:
 
 #include <vulkan/vulkan.h>
 
+struct QueueFamilyIndices
+{
+	std::optional<uint32_t> graphicsFamily;
+
+	bool IsComplete() const
+	{
+		return graphicsFamily.has_value();
+	}
+};
 
 class GraphicsAPI
 {
@@ -41,12 +51,35 @@ public:
 private:
 	bool m_IsInitialized;
 
+#if defined(_DEBUG)
+	const std::vector<const char*> m_ValidationLayers = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+#endif //defined(_DEBUG)
+
+	const std::vector<const char*> m_RequiredInstanceExtensions = {
+		VK_KHR_SURFACE_EXTENSION_NAME,
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+#if defined(_DEBUG)
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+#endif //defined(_DEBUG)
+	};
+
+	const std::vector<const char*> m_OptionalInstanceExtensions = {};
+
+	const std::vector<const char*> m_DeviceExtensions = {};
+
 	VkInstance m_VkInstance;
 	VkPhysicalDevice m_VkPhysicalDevice;
+	QueueFamilyIndices m_QueueFamilyIndices;
+	VkDevice m_VkDevice;
+	VkQueue m_GraphicsQueue;
 
 	void CreateVkInstance();
 	void SelectPhysicalDevice();
 	static int GradeDevice(VkPhysicalDevice device);
+	static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
+	void CreateLogicalDevice();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

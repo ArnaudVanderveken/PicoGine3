@@ -146,6 +146,12 @@ WindowFullscreenState WindowManager::GetFullscreenState() const
 	return m_FullscreenState;
 }
 
+void WindowManager::GetWindowDimensions(int& width, int& height) const
+{
+	width = m_ActualWindowWidth;
+	height = m_ActualWindowHeight;
+}
+
 LRESULT WindowManager::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)

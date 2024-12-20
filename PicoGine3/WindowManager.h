@@ -22,6 +22,8 @@ public:
 	void SetFullscreenState(WindowFullscreenState state);
 	[[nodiscard]] WindowFullscreenState GetFullscreenState() const;
 
+	void GetWindowDimensions(int& width, int& height) const;
+
 private:
 	bool m_IsInitialized;
 

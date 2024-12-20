@@ -30,11 +30,19 @@ private:
 struct QueueFamilyIndices
 {
 	std::optional<uint32_t> graphicsFamily;
+	std::optional<uint32_t> presentFamily;
 
 	bool IsComplete() const
 	{
-		return graphicsFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value();
 	}
+};
+
+struct SwapChainSupportDetails
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+	std::vector<VkSurfaceFormatKHR> formats;
+	std::vector<VkPresentModeKHR> presentModes;
 };
 
 class GraphicsAPI
@@ -53,7 +61,7 @@ private:
 
 #if defined(_DEBUG)
 	const std::vector<const char*> m_ValidationLayers = {
-		"VK_LAYER_KHRONOS_validation"
+		"VK_LAYER_KHRONOS_validation",
 	};
 #endif //defined(_DEBUG)
 
@@ -67,19 +75,30 @@ private:
 
 	const std::vector<const char*> m_OptionalInstanceExtensions = {};
 
-	const std::vector<const char*> m_DeviceExtensions = {};
+	const std::vector<const char*> m_DeviceExtensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	};
 
 	VkInstance m_VkInstance;
+	VkSurfaceKHR m_VkSurface;
 	VkPhysicalDevice m_VkPhysicalDevice;
 	QueueFamilyIndices m_QueueFamilyIndices;
 	VkDevice m_VkDevice;
-	VkQueue m_GraphicsQueue;
+	VkQueue m_GraphicsQueue, m_PresentQueue;
+	VkSwapchainKHR m_VkSwapChain;
 
 	void CreateVkInstance();
+	void CreateSurface();
 	void SelectPhysicalDevice();
-	static int GradeDevice(VkPhysicalDevice device);
-	static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
+	int GradeDevice(VkPhysicalDevice device) const;
+	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
 	void CreateLogicalDevice();
+	bool CheckDeviceExtensionsSupport(VkPhysicalDevice device) const;
+	SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device) const;
+	static VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+	static VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+	static VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+	void CreateSwapchain();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

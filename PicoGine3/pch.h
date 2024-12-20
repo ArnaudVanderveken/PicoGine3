@@ -12,9 +12,12 @@
 /* --- STD --- */
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 

@@ -37,6 +37,9 @@ GraphicsAPI::GraphicsAPI() :
 
 GraphicsAPI::~GraphicsAPI()
 {
+    for (const auto imageView : m_VkSwapChainImageViews)
+        vkDestroyImageView(m_VkDevice, imageView, nullptr);
+
     vkDestroySwapchainKHR(m_VkDevice, m_VkSwapChain, nullptr);
     vkDestroyDevice(m_VkDevice, nullptr);
 #if defined(_DEBUG)
@@ -368,9 +371,9 @@ void GraphicsAPI::CreateSwapchain()
 {
     const SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(m_VkPhysicalDevice);
 
-    VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
-    VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
-    VkExtent2D extent = ChooseSwapExtent(swapChainSupport.capabilities);
+    const VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
+    const VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
+    const VkExtent2D extent = ChooseSwapExtent(swapChainSupport.capabilities);
 
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 
@@ -410,6 +413,38 @@ void GraphicsAPI::CreateSwapchain()
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
     HandleVkResult(vkCreateSwapchainKHR(m_VkDevice, &createInfo, nullptr, &m_VkSwapChain));
+
+    vkGetSwapchainImagesKHR(m_VkDevice, m_VkSwapChain, &imageCount, nullptr);
+    m_VkSwapChainImages.resize(imageCount);
+    vkGetSwapchainImagesKHR(m_VkDevice, m_VkSwapChain, &imageCount, m_VkSwapChainImages.data());
+
+    m_VkSwapChainImageFormat = surfaceFormat.format;
+    m_VkSwapChainExtent = extent;
+}
+
+void GraphicsAPI::CreateSwapchainImageViews()
+{
+    m_VkSwapChainImageViews.resize(m_VkSwapChainImages.size());
+
+    for (size_t i = 0; i < m_VkSwapChainImages.size(); ++i)
+    {
+        VkImageViewCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = m_VkSwapChainImages[i];
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = m_VkSwapChainImageFormat;
+    	createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
+
+        HandleVkResult(vkCreateImageView(m_VkDevice, &createInfo, nullptr, &m_VkSwapChainImageViews[i]));
+    }
 }
 
 #if defined(_DEBUG)

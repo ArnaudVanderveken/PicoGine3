@@ -447,6 +447,11 @@ void GraphicsAPI::CreateSwapchainImageViews()
     }
 }
 
+void GraphicsAPI::CreateGraphicsPipeline()
+{
+
+}
+
 #if defined(_DEBUG)
 
 VKAPI_ATTR VkBool32 VKAPI_CALL GraphicsAPI::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT /*messageType*/, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* /*pUserData*/)

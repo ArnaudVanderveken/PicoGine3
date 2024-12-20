@@ -104,6 +104,7 @@ private:
 	static VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	void CreateSwapchain();
 	void CreateSwapchainImageViews();
+	void CreateGraphicsPipeline();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

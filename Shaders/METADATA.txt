@@ -1,0 +1,20 @@
+/* @metadata
+{
+    "shader_model": "6_0",
+    "entry_points": ["VSMain", "PSMain"],
+    "keywords": [["A"], ["B"], ["A", "B"], ["C"], ...]
+}
+*/
+
+- shader_model must be between 6_0 and 6_8. Some shader models are not available depending on the entry point's shader stage.
+- entry_points can contain the following values (min 1):
+  -> PSMain  for Pixel shader stage
+  -> VSMain  for Vertex shader stage
+  -> GSMain  for Geometry shader stage
+  -> HSMain  for Hull shader stage
+  -> DSMain  for Domain shader stage
+  -> CSMain  for Compute shader stage
+  -> LIBMain for Raytracing shaders
+  -> MSMain  for Mesh shader stage
+  -> ASMain  for Acceleration shader stage
+- keywords is optional. Determines all keywords permutations that needs to be compiled. The no-keyword version of the shader is always compiled.

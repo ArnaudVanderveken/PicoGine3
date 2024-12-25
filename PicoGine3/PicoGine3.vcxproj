@@ -90,9 +90,10 @@
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+"%PGSC_PATH%PicoGineSC.exe" -dx "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">
@@ -115,9 +116,10 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+"%PGSC_PATH%PicoGineSC.exe" -vk "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">
@@ -144,7 +146,8 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+"%PGSC_PATH%PicoGineSC.exe" -dx "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-VK|x64'">
@@ -171,7 +174,8 @@ IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 1 (SET ERRORLEVEL=0)</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+"%PGSC_PATH%PicoGineSC.exe" -vk "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

@@ -16,6 +16,16 @@ GraphicsAPI::~GraphicsAPI()
 {
 }
 
+bool GraphicsAPI::IsInitialized() const
+{
+    return m_IsInitialized;
+}
+
+void GraphicsAPI::DrawTestTriangle() const
+{
+	
+}
+
 #elif defined(_VK)
 
 GraphicsAPI::GraphicsAPI() :
@@ -31,6 +41,7 @@ GraphicsAPI::GraphicsAPI() :
     vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.graphicsFamily.value(), 0, &m_VkGraphicsQueue);
     vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.presentFamily.value(), 0, &m_VkPresentQueue);
     CreateSwapchain();
+    CreateSwapchainImageViews();
     CreateRenderPass();
     CreateGraphicsPipeline();
     CreateFrameBuffers();
@@ -43,6 +54,8 @@ GraphicsAPI::GraphicsAPI() :
 
 GraphicsAPI::~GraphicsAPI()
 {
+    vkDeviceWaitIdle(m_VkDevice);
+    
     vkDestroySemaphore(m_VkDevice, m_VkImageAvailableSemaphore, nullptr);
     vkDestroySemaphore(m_VkDevice, m_VkRenderFinishedSemaphore, nullptr);
     vkDestroyFence(m_VkDevice, m_VkInFlightFence, nullptr);
@@ -66,6 +79,11 @@ GraphicsAPI::~GraphicsAPI()
 #endif //defined(_DEBUG)
     vkDestroySurfaceKHR(m_VkInstance, m_VkSurface, nullptr);
     vkDestroyInstance(m_VkInstance, nullptr);
+}
+
+bool GraphicsAPI::IsInitialized() const
+{
+    return m_IsInitialized;
 }
 
 void GraphicsAPI::DrawTestTriangle() const
@@ -107,6 +125,22 @@ void GraphicsAPI::DrawTestTriangle() const
     submitInfo.pSignalSemaphores = signalSemaphores;
 
     HandleVkResult(vkQueueSubmit(m_VkGraphicsQueue, 1, &submitInfo, m_VkInFlightFence));
+
+    const VkSwapchainKHR swapChains[]
+    {
+        m_VkSwapChain
+    };
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = signalSemaphores;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.pResults = nullptr; // Optional
+
+    vkQueuePresentKHR(m_VkPresentQueue, &presentInfo);
 }
 
 void GraphicsAPI::CreateVkInstance()
@@ -528,19 +562,29 @@ void GraphicsAPI::CreateRenderPass()
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
 
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = 1;
     renderPassInfo.pAttachments = &colorAttachment;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
 
     HandleVkResult(vkCreateRenderPass(m_VkDevice, &renderPassInfo, nullptr, &m_VkRenderPass));
 }
 
 std::vector<char> GraphicsAPI::ReadShaderFile(const std::wstring& filename)
 {
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    std::ifstream file{ filename, std::ios::ate | std::ios::binary };
 
     if (!file.is_open())
         Logger::Get().LogError(L"Unable to open " + filename);

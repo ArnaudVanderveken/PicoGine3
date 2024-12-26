@@ -18,6 +18,10 @@ public:
 	GraphicsAPI(GraphicsAPI&&) noexcept = delete;
 	GraphicsAPI& operator=(GraphicsAPI&&) noexcept = delete;
 
+	[[nodiscard]] bool IsInitialized() const;
+
+	void DrawTestTriangle() const;
+
 private:
 	bool m_IsInitialized;
 
@@ -55,6 +59,8 @@ public:
 	GraphicsAPI& operator=(const GraphicsAPI&) noexcept = delete;
 	GraphicsAPI(GraphicsAPI&&) noexcept = delete;
 	GraphicsAPI& operator=(GraphicsAPI&&) noexcept = delete;
+
+	[[nodiscard]] bool IsInitialized() const;
 
 	void DrawTestTriangle() const;
 

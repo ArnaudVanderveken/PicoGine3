@@ -20,6 +20,8 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
+	void DrawFrame() const;
+
 private:
 	bool m_IsInitialized;
 

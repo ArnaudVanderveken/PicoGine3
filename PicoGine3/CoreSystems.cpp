@@ -45,6 +45,7 @@ HRESULT CoreSystems::CoreLoop() const
         // Update scene
 
         // Render scene
+		Renderer::Get().DrawFrame();
 
 		// Clear current frame keys up/down buffer in InputManager
 		InputManager::Get().EndFrame();

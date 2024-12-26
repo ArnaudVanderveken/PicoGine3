@@ -36,12 +36,17 @@ GraphicsAPI::GraphicsAPI() :
     CreateFrameBuffers();
     CreateCommandPool();
     CreateCommandBuffer();
+    CreateSyncObjects();
 
 	m_IsInitialized = true;
 }
 
 GraphicsAPI::~GraphicsAPI()
 {
+    vkDestroySemaphore(m_VkDevice, m_VkImageAvailableSemaphore, nullptr);
+    vkDestroySemaphore(m_VkDevice, m_VkRenderFinishedSemaphore, nullptr);
+    vkDestroyFence(m_VkDevice, m_VkInFlightFence, nullptr);
+
     vkDestroyCommandPool(m_VkDevice, m_VkCommandPool, nullptr);
 
     for (const auto framebuffer : m_VkFrameBuffers)
@@ -61,6 +66,47 @@ GraphicsAPI::~GraphicsAPI()
 #endif //defined(_DEBUG)
     vkDestroySurfaceKHR(m_VkInstance, m_VkSurface, nullptr);
     vkDestroyInstance(m_VkInstance, nullptr);
+}
+
+void GraphicsAPI::DrawTestTriangle() const
+{
+    vkWaitForFences(m_VkDevice, 1, &m_VkInFlightFence, VK_TRUE, UINT64_MAX);
+
+    vkResetFences(m_VkDevice, 1, &m_VkInFlightFence);
+
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(m_VkDevice, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+    vkResetCommandBuffer(m_VkCommandBuffer, 0);
+
+    RecordCommandBuffer(m_VkCommandBuffer, imageIndex);
+
+    const VkSemaphore waitSemaphores[]
+    {
+	    m_VkImageAvailableSemaphore
+    };
+
+    constexpr VkPipelineStageFlags waitStages[]
+	{
+    	VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    };
+
+    const VkSemaphore signalSemaphores[]
+    {
+        m_VkRenderFinishedSemaphore
+    };
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_VkCommandBuffer;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+
+    HandleVkResult(vkQueueSubmit(m_VkGraphicsQueue, 1, &submitInfo, m_VkInFlightFence));
 }
 
 void GraphicsAPI::CreateVkInstance()
@@ -752,6 +798,20 @@ void GraphicsAPI::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     vkCmdEndRenderPass(commandBuffer);
 
     HandleVkResult(vkEndCommandBuffer(commandBuffer));
+}
+
+void GraphicsAPI::CreateSyncObjects()
+{
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkImageAvailableSemaphore));
+    HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkRenderFinishedSemaphore));
+    HandleVkResult(vkCreateFence(m_VkDevice, &fenceInfo, nullptr, &m_VkInFlightFence));
 }
 
 #if defined(_DEBUG)

@@ -56,6 +56,8 @@ public:
 	GraphicsAPI(GraphicsAPI&&) noexcept = delete;
 	GraphicsAPI& operator=(GraphicsAPI&&) noexcept = delete;
 
+	void DrawTestTriangle() const;
+
 private:
 	bool m_IsInitialized;
 
@@ -99,6 +101,9 @@ private:
 	std::vector<VkFramebuffer> m_VkFrameBuffers;
 	VkCommandPool m_VkCommandPool;
 	VkCommandBuffer m_VkCommandBuffer;
+	VkSemaphore m_VkImageAvailableSemaphore;
+	VkSemaphore m_VkRenderFinishedSemaphore;
+	VkFence m_VkInFlightFence;
 
 	void CreateVkInstance();
 	void CreateSurface();
@@ -121,6 +126,7 @@ private:
 	void CreateCommandPool();
 	void CreateCommandBuffer();
 	void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
+	void CreateSyncObjects();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

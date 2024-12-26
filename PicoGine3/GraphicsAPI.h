@@ -60,12 +60,14 @@ private:
 	bool m_IsInitialized;
 
 #if defined(_DEBUG)
-	const std::vector<const char*> m_ValidationLayers = {
+	const std::vector<const char*> m_ValidationLayers
+	{
 		"VK_LAYER_KHRONOS_validation",
 	};
 #endif //defined(_DEBUG)
 
-	const std::vector<const char*> m_RequiredInstanceExtensions = {
+	const std::vector<const char*> m_RequiredInstanceExtensions
+	{
 		VK_KHR_SURFACE_EXTENSION_NAME,
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #if defined(_DEBUG)
@@ -73,9 +75,10 @@ private:
 #endif //defined(_DEBUG)
 	};
 
-	const std::vector<const char*> m_OptionalInstanceExtensions = {};
+	const std::vector<const char*> m_OptionalInstanceExtensions{};
 
-	const std::vector<const char*> m_DeviceExtensions = {
+	const std::vector<const char*> m_DeviceExtensions
+	{
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	};
 
@@ -84,12 +87,18 @@ private:
 	VkPhysicalDevice m_VkPhysicalDevice;
 	QueueFamilyIndices m_QueueFamilyIndices;
 	VkDevice m_VkDevice;
-	VkQueue m_GraphicsQueue, m_PresentQueue;
+	VkQueue m_VkGraphicsQueue, m_VkPresentQueue;
 	VkSwapchainKHR m_VkSwapChain;
 	std::vector<VkImage> m_VkSwapChainImages;
 	VkFormat m_VkSwapChainImageFormat;
 	VkExtent2D m_VkSwapChainExtent;
 	std::vector<VkImageView> m_VkSwapChainImageViews;
+	VkRenderPass m_VkRenderPass;
+	VkPipelineLayout m_VkPipelineLayout;
+	VkPipeline m_VkGraphicsPipeline;
+	std::vector<VkFramebuffer> m_VkFrameBuffers;
+	VkCommandPool m_VkCommandPool;
+	VkCommandBuffer m_VkCommandBuffer;
 
 	void CreateVkInstance();
 	void CreateSurface();
@@ -104,7 +113,14 @@ private:
 	static VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	void CreateSwapchain();
 	void CreateSwapchainImageViews();
+	void CreateRenderPass();
+	static std::vector<char> ReadShaderFile(const std::wstring& filename);
+	VkShaderModule CreateShaderModule(const std::vector<char>& code) const;
 	void CreateGraphicsPipeline();
+	void CreateFrameBuffers();
+	void CreateCommandPool();
+	void CreateCommandBuffer();
+	void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

@@ -20,7 +20,7 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestTriangle() const;
+	void DrawTestTriangle();
 
 private:
 	bool m_IsInitialized;
@@ -62,7 +62,7 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestTriangle() const;
+	void DrawTestTriangle();
 
 private:
 	bool m_IsInitialized;
@@ -90,6 +90,9 @@ private:
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	};
 
+	static constexpr uint32_t k_MaxFramesInFlight{ 2 };
+	uint32_t m_CurrentFrame{};
+
 	VkInstance m_VkInstance;
 	VkSurfaceKHR m_VkSurface;
 	VkPhysicalDevice m_VkPhysicalDevice;
@@ -106,10 +109,10 @@ private:
 	VkPipeline m_VkGraphicsPipeline;
 	std::vector<VkFramebuffer> m_VkFrameBuffers;
 	VkCommandPool m_VkCommandPool;
-	VkCommandBuffer m_VkCommandBuffer;
-	VkSemaphore m_VkImageAvailableSemaphore;
-	VkSemaphore m_VkRenderFinishedSemaphore;
-	VkFence m_VkInFlightFence;
+	std::vector<VkCommandBuffer> m_VkCommandBuffers;
+	std::vector<VkSemaphore> m_VkImageAvailableSemaphores;
+	std::vector<VkSemaphore> m_VkRenderFinishedSemaphores;
+	std::vector<VkFence> m_VkInFlightFences;
 
 	void CreateVkInstance();
 	void CreateSurface();

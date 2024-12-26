@@ -21,7 +21,7 @@ bool GraphicsAPI::IsInitialized() const
     return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestTriangle() const
+void GraphicsAPI::DrawTestTriangle()
 {
 	
 }
@@ -55,12 +55,15 @@ GraphicsAPI::GraphicsAPI() :
 GraphicsAPI::~GraphicsAPI()
 {
     vkDeviceWaitIdle(m_VkDevice);
-    
-    vkDestroySemaphore(m_VkDevice, m_VkImageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(m_VkDevice, m_VkRenderFinishedSemaphore, nullptr);
-    vkDestroyFence(m_VkDevice, m_VkInFlightFence, nullptr);
 
-    vkDestroyCommandPool(m_VkDevice, m_VkCommandPool, nullptr);
+    for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+    {
+        vkDestroySemaphore(m_VkDevice, m_VkImageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(m_VkDevice, m_VkRenderFinishedSemaphores[i], nullptr);
+        vkDestroyFence(m_VkDevice, m_VkInFlightFences[i], nullptr);
+    }
+
+	vkDestroyCommandPool(m_VkDevice, m_VkCommandPool, nullptr);
 
     for (const auto framebuffer : m_VkFrameBuffers)
         vkDestroyFramebuffer(m_VkDevice, framebuffer, nullptr);
@@ -86,22 +89,22 @@ bool GraphicsAPI::IsInitialized() const
     return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestTriangle() const
+void GraphicsAPI::DrawTestTriangle()
 {
-    vkWaitForFences(m_VkDevice, 1, &m_VkInFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
-    vkResetFences(m_VkDevice, 1, &m_VkInFlightFence);
+    vkResetFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame]);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(m_VkDevice, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkAcquireNextImageKHR(m_VkDevice, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &imageIndex);
 
-    vkResetCommandBuffer(m_VkCommandBuffer, 0);
+    vkResetCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], 0);
 
-    RecordCommandBuffer(m_VkCommandBuffer, imageIndex);
+    RecordCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], imageIndex);
 
     const VkSemaphore waitSemaphores[]
     {
-	    m_VkImageAvailableSemaphore
+	    m_VkImageAvailableSemaphores[m_CurrentFrame]
     };
 
     constexpr VkPipelineStageFlags waitStages[]
@@ -111,7 +114,7 @@ void GraphicsAPI::DrawTestTriangle() const
 
     const VkSemaphore signalSemaphores[]
     {
-        m_VkRenderFinishedSemaphore
+        m_VkRenderFinishedSemaphores[m_CurrentFrame]
     };
 
     VkSubmitInfo submitInfo{};
@@ -120,11 +123,11 @@ void GraphicsAPI::DrawTestTriangle() const
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_VkCommandBuffer;
+    submitInfo.pCommandBuffers = &m_VkCommandBuffers[m_CurrentFrame];
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    HandleVkResult(vkQueueSubmit(m_VkGraphicsQueue, 1, &submitInfo, m_VkInFlightFence));
+    HandleVkResult(vkQueueSubmit(m_VkGraphicsQueue, 1, &submitInfo, m_VkInFlightFences[m_CurrentFrame]));
 
     const VkSwapchainKHR swapChains[]
     {
@@ -141,6 +144,8 @@ void GraphicsAPI::DrawTestTriangle() const
     presentInfo.pResults = nullptr; // Optional
 
     vkQueuePresentKHR(m_VkPresentQueue, &presentInfo);
+
+    m_CurrentFrame = (m_CurrentFrame + 1) % k_MaxFramesInFlight;
 }
 
 void GraphicsAPI::CreateVkInstance()
@@ -790,13 +795,15 @@ void GraphicsAPI::CreateCommandPool()
 
 void GraphicsAPI::CreateCommandBuffer()
 {
+    m_VkCommandBuffers.resize(k_MaxFramesInFlight);
+
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = m_VkCommandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
+    allocInfo.commandBufferCount = k_MaxFramesInFlight;
 
-    HandleVkResult(vkAllocateCommandBuffers(m_VkDevice, &allocInfo, &m_VkCommandBuffer));
+    HandleVkResult(vkAllocateCommandBuffers(m_VkDevice, &allocInfo, m_VkCommandBuffers.data()));
 }
 
 void GraphicsAPI::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const
@@ -846,6 +853,10 @@ void GraphicsAPI::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 
 void GraphicsAPI::CreateSyncObjects()
 {
+    m_VkImageAvailableSemaphores.resize(k_MaxFramesInFlight);
+    m_VkRenderFinishedSemaphores.resize(k_MaxFramesInFlight);
+    m_VkInFlightFences.resize(k_MaxFramesInFlight);
+
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -853,9 +864,12 @@ void GraphicsAPI::CreateSyncObjects()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkImageAvailableSemaphore));
-    HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkRenderFinishedSemaphore));
-    HandleVkResult(vkCreateFence(m_VkDevice, &fenceInfo, nullptr, &m_VkInFlightFence));
+    for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+    {
+        HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkImageAvailableSemaphores[i]));
+        HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkRenderFinishedSemaphores[i]));
+        HandleVkResult(vkCreateFence(m_VkDevice, &fenceInfo, nullptr, &m_VkInFlightFences[i]));
+    }
 }
 
 #if defined(_DEBUG)

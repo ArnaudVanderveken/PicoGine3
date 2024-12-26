@@ -160,6 +160,15 @@ LRESULT WindowManager::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 		::PostQuitMessage(0);
 		return 0;
 
+	case WM_SIZE:
+	{
+		const int width{ LOWORD(lParam) };
+		const int height{ HIWORD(lParam) };
+
+		CoreSystems::Get().SetAppMinimized(width == 0 || height == 0);
+
+		break;
+	}
 	case WM_INPUT:
 		InputManager::Get().ProcessRawInput(reinterpret_cast<HRAWINPUT>(lParam));
 		break;

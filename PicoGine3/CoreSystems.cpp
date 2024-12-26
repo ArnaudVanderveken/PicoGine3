@@ -8,7 +8,8 @@
 
 
 CoreSystems::CoreSystems() :
-	m_AppHinstance{ GetModuleHandle(nullptr) }
+	m_AppHinstance{ GetModuleHandle(nullptr) },
+	m_AppMinimized{}
 {
 }
 
@@ -44,8 +45,9 @@ HRESULT CoreSystems::CoreLoop() const
 
         // Update scene
 
-        // Render scene
-		Renderer::Get().DrawFrame();
+        // Render scene (only if not minimized)
+		if (!m_AppMinimized)
+			Renderer::Get().DrawFrame();
 
 		// Clear current frame keys up/down buffer in InputManager
 		InputManager::Get().EndFrame();
@@ -53,4 +55,9 @@ HRESULT CoreSystems::CoreLoop() const
 	} while (msg.message != WM_QUIT);
 
     return S_OK;
+}
+
+void CoreSystems::SetAppMinimized(bool value)
+{
+	m_AppMinimized = value;
 }

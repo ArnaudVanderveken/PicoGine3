@@ -65,17 +65,12 @@ GraphicsAPI::~GraphicsAPI()
 
 	vkDestroyCommandPool(m_VkDevice, m_VkCommandPool, nullptr);
 
-    for (const auto framebuffer : m_VkFrameBuffers)
-        vkDestroyFramebuffer(m_VkDevice, framebuffer, nullptr);
+    CleanupSwapchain();
     
     vkDestroyPipeline(m_VkDevice, m_VkGraphicsPipeline, nullptr);
     vkDestroyPipelineLayout(m_VkDevice, m_VkPipelineLayout, nullptr);
     vkDestroyRenderPass(m_VkDevice, m_VkRenderPass, nullptr);
 
-    for (const auto imageView : m_VkSwapChainImageViews)
-        vkDestroyImageView(m_VkDevice, imageView, nullptr);
-
-    vkDestroySwapchainKHR(m_VkDevice, m_VkSwapChain, nullptr);
     vkDestroyDevice(m_VkDevice, nullptr);
 #if defined(_DEBUG)
     CleanupDebugMessenger();
@@ -93,10 +88,19 @@ void GraphicsAPI::DrawTestTriangle()
 {
     vkWaitForFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
-    vkResetFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame]);
-
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(m_VkDevice, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &imageIndex);
+    auto vkResult{ vkAcquireNextImageKHR(m_VkDevice, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &imageIndex) };
+
+    if (vkResult == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        RecreateSwapchain();
+        return;
+    }
+
+    if (vkResult != VK_SUCCESS && vkResult != VK_SUBOPTIMAL_KHR)
+        HandleVkResult(vkResult);
+
+    vkResetFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame]);
 
     vkResetCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], 0);
 
@@ -143,7 +147,13 @@ void GraphicsAPI::DrawTestTriangle()
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr; // Optional
 
-    vkQueuePresentKHR(m_VkPresentQueue, &presentInfo);
+    vkResult = vkQueuePresentKHR(m_VkPresentQueue, &presentInfo);
+
+    if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
+        RecreateSwapchain();
+
+    else if (vkResult != VK_SUCCESS)
+        HandleVkResult(vkResult);
 
     m_CurrentFrame = (m_CurrentFrame + 1) % k_MaxFramesInFlight;
 }
@@ -448,14 +458,14 @@ VkPresentModeKHR GraphicsAPI::ChooseSwapPresentMode(const std::vector<VkPresentM
 
 VkExtent2D GraphicsAPI::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
 {
-    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
         return capabilities.currentExtent;
-    }
 
     int width, height;
-    WindowManager::Get().GetWindowDimensions(width, height);
+        WindowManager::Get().GetWindowDimensions(width, height);
 
-    VkExtent2D actualExtent = {
+    VkExtent2D actualExtent
+	{
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height)
     };
@@ -870,6 +880,28 @@ void GraphicsAPI::CreateSyncObjects()
         HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkRenderFinishedSemaphores[i]));
         HandleVkResult(vkCreateFence(m_VkDevice, &fenceInfo, nullptr, &m_VkInFlightFences[i]));
     }
+}
+
+void GraphicsAPI::CleanupSwapchain() const
+{
+    for (const auto framebuffer : m_VkFrameBuffers)
+        vkDestroyFramebuffer(m_VkDevice, framebuffer, nullptr);
+
+    for (const auto imageView : m_VkSwapChainImageViews)
+        vkDestroyImageView(m_VkDevice, imageView, nullptr);
+
+    vkDestroySwapchainKHR(m_VkDevice, m_VkSwapChain, nullptr);
+}
+
+void GraphicsAPI::RecreateSwapchain()
+{
+    vkDeviceWaitIdle(m_VkDevice);
+
+    CleanupSwapchain();
+
+    CreateSwapchain();
+    CreateSwapchainImageViews();
+    CreateFrameBuffers();
 }
 
 #if defined(_DEBUG)

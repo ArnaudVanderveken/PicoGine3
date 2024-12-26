@@ -20,10 +20,12 @@ public:
 	[[nodiscard]] HINSTANCE GetAppHinstance() const;
 
 	HRESULT CoreLoop() const;
+	void SetAppMinimized(bool value);
 
 private:
-
 	HINSTANCE m_AppHinstance;
+
+	bool m_AppMinimized;
 };
 
 #endif //CORESYSTEMS_H

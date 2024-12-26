@@ -136,6 +136,8 @@ private:
 	void CreateCommandBuffer();
 	void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
 	void CreateSyncObjects();
+	void CleanupSwapchain() const;
+	void RecreateSwapchain();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

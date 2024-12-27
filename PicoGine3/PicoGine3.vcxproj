@@ -70,6 +70,18 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-DX12|x64'">
+    <CustomBuildBeforeTargets>Build</CustomBuildBeforeTargets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">
+    <CustomBuildBeforeTargets>Build</CustomBuildBeforeTargets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">
+    <CustomBuildBeforeTargets>Build</CustomBuildBeforeTargets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-VK|x64'">
+    <CustomBuildBeforeTargets>Build</CustomBuildBeforeTargets>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug-DX12|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
@@ -92,9 +104,21 @@
       <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
-"%PGSC_PATH%PicoGineSC.exe" -dx "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Command>"%PGSC_PATH%PicoGineSC.exe" -dx "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>PicoGineSC Shader Compilation</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>AlwaysRun.txt</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">
     <ClCompile>
@@ -118,9 +142,21 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
       <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
-"%PGSC_PATH%PicoGineSC.exe" -vk "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Command>"%PGSC_PATH%PicoGineSC.exe" -vk "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>PicoGineSC Shader Compilation</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>AlwaysRun.txt</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">
     <ClCompile>
@@ -146,9 +182,17 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
-"%PGSC_PATH%PicoGineSC.exe" -dx "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Command>"%PGSC_PATH%PicoGineSC.exe" -dx "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+      <Message>PicoGineSC Shader Compilation</Message>
+      <Outputs>AlwaysRun.txt</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-VK|x64'">
     <ClCompile>
@@ -174,9 +218,17 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
-IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
-"%PGSC_PATH%PicoGineSC.exe" -vk "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Command>"%PGSC_PATH%PicoGineSC.exe" -vk "$(SolutionDir)Shaders" "$(OutDir)Shaders"</Command>
+      <Message>PicoGineSC Shader Compilation</Message>
+      <Outputs>AlwaysRun.txt</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CoreSystems.cpp" />

@@ -185,6 +185,42 @@ void GraphicsAPI::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMe
     vkBindBufferMemory(m_VkDevice, buffer, bufferMemory, 0);
 }
 
+void GraphicsAPI::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+{
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = m_VkCommandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(m_VkDevice, &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0; // Optional
+    copyRegion.dstOffset = 0; // Optional
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(m_VkGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_VkGraphicsQueue);
+
+    vkFreeCommandBuffers(m_VkDevice, m_VkCommandPool, 1, &commandBuffer);
+}
+
 void GraphicsAPI::CreateVkInstance()
 {
     VkApplicationInfo appInfo{};
@@ -949,12 +985,22 @@ void GraphicsAPI::RecreateSwapchain()
 void GraphicsAPI::CreateVertexBuffer()
 {
 	const VkDeviceSize bufferSize{ sizeof(Vertex) * k_TestTriangleVertices.size() };
-    CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_VkVertexBuffer, m_VkVertexBufferMemory);
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(m_VkDevice, m_VkVertexBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, k_TestTriangleVertices.data(), bufferSize);
-    vkUnmapMemory(m_VkDevice, m_VkVertexBufferMemory);
+    vkUnmapMemory(m_VkDevice, stagingBufferMemory);
+
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkVertexBuffer, m_VkVertexBufferMemory);
+
+    CopyBuffer(stagingBuffer, m_VkVertexBuffer, bufferSize);
+
+    vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
+    vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
 }
 
 uint32_t GraphicsAPI::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const

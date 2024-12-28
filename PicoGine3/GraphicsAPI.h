@@ -156,6 +156,7 @@ private:
 	VkDeviceMemory m_VkVertexBufferMemory;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
+	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
 	void CreateVkInstance();
 	void CreateSurface();

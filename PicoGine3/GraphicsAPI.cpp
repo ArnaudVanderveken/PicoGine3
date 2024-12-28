@@ -46,6 +46,7 @@ GraphicsAPI::GraphicsAPI() :
     CreateGraphicsPipeline();
     CreateFrameBuffers();
     CreateCommandPool();
+    CreateVertexBuffer();
     CreateCommandBuffer();
     CreateSyncObjects();
 
@@ -66,6 +67,9 @@ GraphicsAPI::~GraphicsAPI()
 	vkDestroyCommandPool(m_VkDevice, m_VkCommandPool, nullptr);
 
     CleanupSwapchain();
+
+    vkDestroyBuffer(m_VkDevice, m_VkVertexBuffer, nullptr);
+    vkFreeMemory(m_VkDevice, m_VkVertexBufferMemory, nullptr);
     
     vkDestroyPipeline(m_VkDevice, m_VkGraphicsPipeline, nullptr);
     vkDestroyPipelineLayout(m_VkDevice, m_VkPipelineLayout, nullptr);
@@ -630,8 +634,8 @@ VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) co
 
 void GraphicsAPI::CreateGraphicsPipeline()
 {
-    const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTriangleHardcoded_VS.spv");
-    const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTriangleHardcoded_PS.spv");
+    const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTriangle_VS.spv");
+    const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTriangle_PS.spv");
 
     const VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode);
     const VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode);
@@ -665,12 +669,15 @@ void GraphicsAPI::CreateGraphicsPipeline()
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
+    const auto& bindingDescription = Vertex::GetBindingDescription();
+    const auto& attributeDescriptions = Vertex::GetAttributeDescriptions();
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -854,7 +861,19 @@ void GraphicsAPI::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     scissor.extent = m_VkSwapChainExtent;
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    const VkBuffer vertexBuffers[]
+    {
+	    m_VkVertexBuffer
+    };
+
+    constexpr VkDeviceSize offsets[]
+    {
+	    0
+    };
+
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+    vkCmdDraw(commandBuffer, static_cast<uint32_t>(k_TestTriangleVertices.size()), 1, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 
@@ -902,6 +921,47 @@ void GraphicsAPI::RecreateSwapchain()
     CreateSwapchain();
     CreateSwapchainImageViews();
     CreateFrameBuffers();
+}
+
+void GraphicsAPI::CreateVertexBuffer()
+{
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeof(Vertex) * k_TestTriangleVertices.size();
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    HandleVkResult(vkCreateBuffer(m_VkDevice, &bufferInfo, nullptr, &m_VkVertexBuffer));
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(m_VkDevice, m_VkVertexBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    HandleVkResult(vkAllocateMemory(m_VkDevice, &allocInfo, nullptr, &m_VkVertexBufferMemory));
+
+    vkBindBufferMemory(m_VkDevice, m_VkVertexBuffer, m_VkVertexBufferMemory, 0);
+
+    void* data;
+    vkMapMemory(m_VkDevice, m_VkVertexBufferMemory, 0, bufferInfo.size, 0, &data);
+	memcpy(data, k_TestTriangleVertices.data(), (size_t)bufferInfo.size);
+    vkUnmapMemory(m_VkDevice, m_VkVertexBufferMemory);
+}
+
+uint32_t GraphicsAPI::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const
+{
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(m_VkPhysicalDevice, &memProperties);
+
+    for (uint32_t i{}; i < memProperties.memoryTypeCount; ++i)
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+            return i;
+
+    Logger::Get().LogError(L"Failed to find suitable memory type!");
+    return 0;
 }
 
 #if defined(_DEBUG)

@@ -21,7 +21,7 @@ static const float3 g_Colors[3] = {
 // STRUCTS
 struct VSInput
 {
-	[[vk::location(0)]] float2 potitionCS : POSITION;
+	[[vk::location(0)]] float2 positionCS : POSITION;
 	[[vk::location(1)]] float3 color 	  : COLOR;
 };
 
@@ -32,12 +32,12 @@ struct VSOutput
 };
 
 // STAGES
-VSOutput VSMain(uint vertexIndex : SV_VertexID)
+VSOutput VSMain(VSInput input)
 {
 	VSOutput output = (VSOutput)0;
 
-	output.positionCS = float4(g_Positions[vertexIndex], 0.0f, 1.0f);
-	output.color = g_Colors[vertexIndex];
+	output.positionCS = float4(input.positionCS, 0.0f, 1.0f);
+	output.color = input.color;
 
 	return output;
 }

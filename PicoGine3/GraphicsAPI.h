@@ -49,6 +49,38 @@ struct SwapChainSupportDetails
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
+struct Vertex
+{
+	XMFLOAT2 m_PositionCS;
+	XMFLOAT3 m_Color;
+
+	static const VkVertexInputBindingDescription& GetBindingDescription()
+	{
+		static VkVertexInputBindingDescription bindingDescription{};
+		bindingDescription.binding = 0;
+		bindingDescription.stride = sizeof(Vertex);
+		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return bindingDescription;
+	}
+
+	static const std::array<VkVertexInputAttributeDescription, 2>& GetAttributeDescriptions()
+	{
+		static std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+		attributeDescriptions[0].binding = 0;
+		attributeDescriptions[0].location = 0;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[0].offset = offsetof(Vertex, m_PositionCS);
+
+		attributeDescriptions[1].binding = 0;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, m_Color);
+
+		return attributeDescriptions;
+	}
+};
+
 class GraphicsAPI
 {
 public:
@@ -66,6 +98,13 @@ public:
 
 private:
 	bool m_IsInitialized;
+
+	static inline const std::vector<Vertex> k_TestTriangleVertices
+	{
+		{ {  0.0f, -0.5f }, { 1.0f, 1.0f, 1.0f } },
+		{ {  0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f } },
+		{ { -0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f } }
+	};
 
 #if defined(_DEBUG)
 	const std::vector<const char*> m_ValidationLayers
@@ -113,6 +152,8 @@ private:
 	std::vector<VkSemaphore> m_VkImageAvailableSemaphores;
 	std::vector<VkSemaphore> m_VkRenderFinishedSemaphores;
 	std::vector<VkFence> m_VkInFlightFences;
+	VkBuffer m_VkVertexBuffer;
+	VkDeviceMemory m_VkVertexBufferMemory;
 
 	void CreateVkInstance();
 	void CreateSurface();
@@ -129,7 +170,7 @@ private:
 	void CreateSwapchainImageViews();
 	void CreateRenderPass();
 	static std::vector<char> ReadShaderFile(const std::wstring& filename);
-	VkShaderModule CreateShaderModule(const std::vector<char>& code) const;
+	[[nodiscard]] VkShaderModule CreateShaderModule(const std::vector<char>& code) const;
 	void CreateGraphicsPipeline();
 	void CreateFrameBuffers();
 	void CreateCommandPool();
@@ -138,6 +179,8 @@ private:
 	void CreateSyncObjects();
 	void CleanupSwapchain() const;
 	void RecreateSwapchain();
+	void CreateVertexBuffer();
+	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

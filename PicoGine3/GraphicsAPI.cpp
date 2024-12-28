@@ -162,6 +162,29 @@ void GraphicsAPI::DrawTestTriangle()
     m_CurrentFrame = (m_CurrentFrame + 1) % k_MaxFramesInFlight;
 }
 
+void GraphicsAPI::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const
+{
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    HandleVkResult(vkCreateBuffer(m_VkDevice, &bufferInfo, nullptr, &buffer));
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(m_VkDevice, buffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
+
+    HandleVkResult(vkAllocateMemory(m_VkDevice, &allocInfo, nullptr, &bufferMemory));
+
+    vkBindBufferMemory(m_VkDevice, buffer, bufferMemory, 0);
+}
+
 void GraphicsAPI::CreateVkInstance()
 {
     VkApplicationInfo appInfo{};
@@ -925,29 +948,12 @@ void GraphicsAPI::RecreateSwapchain()
 
 void GraphicsAPI::CreateVertexBuffer()
 {
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = sizeof(Vertex) * k_TestTriangleVertices.size();
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    HandleVkResult(vkCreateBuffer(m_VkDevice, &bufferInfo, nullptr, &m_VkVertexBuffer));
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(m_VkDevice, m_VkVertexBuffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    HandleVkResult(vkAllocateMemory(m_VkDevice, &allocInfo, nullptr, &m_VkVertexBufferMemory));
-
-    vkBindBufferMemory(m_VkDevice, m_VkVertexBuffer, m_VkVertexBufferMemory, 0);
+	const VkDeviceSize bufferSize{ sizeof(Vertex) * k_TestTriangleVertices.size() };
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_VkVertexBuffer, m_VkVertexBufferMemory);
 
     void* data;
-    vkMapMemory(m_VkDevice, m_VkVertexBufferMemory, 0, bufferInfo.size, 0, &data);
-	memcpy(data, k_TestTriangleVertices.data(), (size_t)bufferInfo.size);
+    vkMapMemory(m_VkDevice, m_VkVertexBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, k_TestTriangleVertices.data(), bufferSize);
     vkUnmapMemory(m_VkDevice, m_VkVertexBufferMemory);
 }
 

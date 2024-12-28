@@ -630,8 +630,8 @@ VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) co
 
 void GraphicsAPI::CreateGraphicsPipeline()
 {
-    const auto vertShaderCode = ReadShaderFile(L"Shaders/TestShader_VS.spv");
-    const auto fragShaderCode = ReadShaderFile(L"Shaders/TestShader_PS.spv");
+    const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTriangleHardcoded_VS.spv");
+    const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTriangleHardcoded_PS.spv");
 
     const VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode);
     const VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode);

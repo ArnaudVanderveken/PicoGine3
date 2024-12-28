@@ -19,10 +19,16 @@ static const float3 g_Colors[3] = {
 };
 
 // STRUCTS
+struct VSInput
+{
+	[[vk::location(0)]] float2 potitionCS : POSITION;
+	[[vk::location(1)]] float3 color 	  : COLOR;
+};
+
 struct VSOutput
 {
-	float4 positionCS : SV_POSITION;
-	float3 color : COLOR0;
+						float4 positionCS : SV_POSITION;
+	[[vk::location(0)]] float3 color : COLOR;
 };
 
 // STAGES

@@ -21,8 +21,11 @@ static const float3 g_Colors[3] = {
 // STRUCTS
 struct VSOutput
 {
-						float4 positionCS : SV_POSITION;
-	[[vk::location(0)]] float3 color 	  : COLOR0;
+	float4 positionCS : SV_POSITION;
+#if defined(_VK)
+	[[vk::location(0)]]
+#endif
+	float3 color 	  : COLOR0;
 };
 
 // STAGES

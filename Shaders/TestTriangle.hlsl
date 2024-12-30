@@ -5,19 +5,6 @@
 }
 */
 
-// GLOBALS
-static const float2 g_Positions[3] = {
-	float2(0.0f, -0.5f),
-	float2(0.5f, 0.5f),
-	float2(-0.5f, 0.5f)
-};
-
-static const float3 g_Colors[3] = {
-	float3(1.0f, 0.0f, 0.0f),
-	float3(0.0f, 1.0f, 0.0f),
-	float3(0.0f, 0.0f, 1.0f)
-};
-
 // STRUCTS
 struct VSInput
 {

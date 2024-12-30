@@ -20,7 +20,7 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestTriangle();
+	void DrawTestTriangles();
 
 private:
 	bool m_IsInitialized;
@@ -94,16 +94,23 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestTriangle();
+	void DrawTestTriangles();
 
 private:
 	bool m_IsInitialized;
 
-	static inline const std::vector<Vertex> k_TestTriangleVertices
+	static inline const std::vector<Vertex> k_TestTrianglesVertices
 	{
-		{ {  0.0f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
-		{ {  0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f } },
-		{ { -0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f } }
+		{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
+		{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f } },
+		{ {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f } },
+		{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f } }
+	};
+
+	static inline const std::vector<uint32_t> k_TestTrianglesIndices
+	{
+		0, 1, 2,
+		2, 3, 0
 	};
 
 #if defined(_DEBUG)
@@ -154,6 +161,8 @@ private:
 	std::vector<VkFence> m_VkInFlightFences;
 	VkBuffer m_VkVertexBuffer;
 	VkDeviceMemory m_VkVertexBufferMemory;
+	VkBuffer m_VkIndexBuffer;
+	VkDeviceMemory m_VkIndexBufferMemory;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -178,11 +187,12 @@ private:
 	void CreateFrameBuffers();
 	void CreateCommandPool();
 	void CreateCommandBuffer();
-	void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
+	void RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
 	void CreateSyncObjects();
 	void CleanupSwapchain() const;
 	void RecreateSwapchain();
 	void CreateVertexBuffer();
+	void CreateIndexBuffer();
 	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 
 #if defined(_DEBUG)

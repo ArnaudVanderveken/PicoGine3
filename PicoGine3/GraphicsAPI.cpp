@@ -21,7 +21,7 @@ bool GraphicsAPI::IsInitialized() const
     return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestTriangle()
+void GraphicsAPI::DrawTestTriangles()
 {
 	
 }
@@ -47,6 +47,7 @@ GraphicsAPI::GraphicsAPI() :
     CreateFrameBuffers();
     CreateCommandPool();
     CreateVertexBuffer();
+    CreateIndexBuffer();
     CreateCommandBuffer();
     CreateSyncObjects();
 
@@ -68,6 +69,9 @@ GraphicsAPI::~GraphicsAPI()
 
     CleanupSwapchain();
 
+    vkDestroyBuffer(m_VkDevice, m_VkIndexBuffer, nullptr);
+    vkFreeMemory(m_VkDevice, m_VkIndexBufferMemory, nullptr);
+
     vkDestroyBuffer(m_VkDevice, m_VkVertexBuffer, nullptr);
     vkFreeMemory(m_VkDevice, m_VkVertexBufferMemory, nullptr);
     
@@ -88,7 +92,7 @@ bool GraphicsAPI::IsInitialized() const
     return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestTriangle()
+void GraphicsAPI::DrawTestTriangles()
 {
     vkWaitForFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
@@ -108,7 +112,7 @@ void GraphicsAPI::DrawTestTriangle()
 
     vkResetCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], 0);
 
-    RecordCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], imageIndex);
+    RecordTestTrianglesCmdBuffer(m_VkCommandBuffers[m_CurrentFrame], imageIndex);
 
     const VkSemaphore waitSemaphores[]
     {
@@ -882,7 +886,7 @@ void GraphicsAPI::CreateCommandBuffer()
     HandleVkResult(vkAllocateCommandBuffers(m_VkDevice, &allocInfo, m_VkCommandBuffers.data()));
 }
 
-void GraphicsAPI::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const
+void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -932,7 +936,9 @@ void GraphicsAPI::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-    vkCmdDraw(commandBuffer, static_cast<uint32_t>(k_TestTriangleVertices.size()), 1, 0, 0);
+    vkCmdBindIndexBuffer(commandBuffer, m_VkIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(k_TestTrianglesIndices.size()), 1, 0, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 
@@ -984,7 +990,7 @@ void GraphicsAPI::RecreateSwapchain()
 
 void GraphicsAPI::CreateVertexBuffer()
 {
-	const VkDeviceSize bufferSize{ sizeof(Vertex) * k_TestTriangleVertices.size() };
+	const VkDeviceSize bufferSize{ sizeof(Vertex) * k_TestTrianglesVertices.size() };
 
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -992,12 +998,33 @@ void GraphicsAPI::CreateVertexBuffer()
 
     void* data;
     vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, k_TestTriangleVertices.data(), bufferSize);
+	memcpy(data, k_TestTrianglesVertices.data(), bufferSize);
     vkUnmapMemory(m_VkDevice, stagingBufferMemory);
 
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkVertexBuffer, m_VkVertexBufferMemory);
 
     CopyBuffer(stagingBuffer, m_VkVertexBuffer, bufferSize);
+
+    vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
+    vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
+}
+
+void GraphicsAPI::CreateIndexBuffer()
+{
+    const VkDeviceSize bufferSize{ sizeof(uint32_t) * k_TestTrianglesIndices.size() };
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+    void* data;
+    vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, k_TestTrianglesIndices.data(), bufferSize);
+    vkUnmapMemory(m_VkDevice, stagingBufferMemory);
+
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkIndexBuffer, m_VkIndexBufferMemory);
+
+    CopyBuffer(stagingBuffer, m_VkIndexBuffer, bufferSize);
 
     vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
     vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);

@@ -43,11 +43,13 @@ GraphicsAPI::GraphicsAPI() :
     CreateSwapchain();
     CreateSwapchainImageViews();
     CreateRenderPass();
+    CreateDescriptorSetLayout();
     CreateGraphicsPipeline();
     CreateFrameBuffers();
     CreateCommandPool();
     CreateVertexBuffer();
     CreateIndexBuffer();
+    CreateUniformBuffers();
     CreateCommandBuffer();
     CreateSyncObjects();
 
@@ -68,6 +70,14 @@ GraphicsAPI::~GraphicsAPI()
 	vkDestroyCommandPool(m_VkDevice, m_VkCommandPool, nullptr);
 
     CleanupSwapchain();
+
+    for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+    {
+        vkDestroyBuffer(m_VkDevice, m_VkUniformBuffers[i], nullptr);
+        vkFreeMemory(m_VkDevice, m_VkUniformBuffersMemory[i], nullptr);
+    }
+
+    vkDestroyDescriptorSetLayout(m_VkDevice, m_VkDescriptorSetLayout, nullptr);
 
     vkDestroyBuffer(m_VkDevice, m_VkIndexBuffer, nullptr);
     vkFreeMemory(m_VkDevice, m_VkIndexBufferMemory, nullptr);
@@ -111,6 +121,8 @@ void GraphicsAPI::DrawTestTriangles()
     vkResetFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame]);
 
     vkResetCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], 0);
+
+    UpdateUniformBuffer(m_CurrentFrame);
 
     RecordTestTrianglesCmdBuffer(m_VkCommandBuffers[m_CurrentFrame], imageIndex);
 
@@ -809,8 +821,8 @@ void GraphicsAPI::CreateGraphicsPipeline()
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0; // Optional
-    pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &m_VkDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -1041,6 +1053,56 @@ uint32_t GraphicsAPI::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
 
     Logger::Get().LogError(L"Failed to find suitable memory type!");
     return 0;
+}
+
+void GraphicsAPI::CreateDescriptorSetLayout()
+{
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+
+    HandleVkResult(vkCreateDescriptorSetLayout(m_VkDevice, &layoutInfo, nullptr, &m_VkDescriptorSetLayout));
+}
+
+void GraphicsAPI::CreateUniformBuffers()
+{
+	constexpr VkDeviceSize bufferSize{ sizeof(UBO) };
+
+    m_VkUniformBuffers.resize(k_MaxFramesInFlight);
+    m_VkUniformBuffersMemory.resize(k_MaxFramesInFlight);
+    m_VkUniformBuffersMapped.resize(k_MaxFramesInFlight);
+
+    for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+    {
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_VkUniformBuffers[i], m_VkUniformBuffersMemory[i]);
+        vkMapMemory(m_VkDevice, m_VkUniformBuffersMemory[i], 0, bufferSize, 0, &m_VkUniformBuffersMapped[i]);
+    }
+}
+
+void GraphicsAPI::UpdateUniformBuffer(uint32_t currentFrame) const
+{
+    static auto startTime{ std::chrono::high_resolution_clock::now() };
+
+    const auto currentTime{ std::chrono::high_resolution_clock::now() };
+    const float time{ std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() };
+
+    UBO ubo{};
+    XMStoreFloat4x4(&ubo.m_ModelMat, XMMatrixRotationY(time * XMConvertToRadians(90.0f)));
+    static XMFLOAT3 eyePos{ 2.0f, 2.0f, 2.0f };
+    static XMFLOAT3 focusPos{ 0.0f, 0.0f, 0.0f };
+    static XMFLOAT3 upDir{ 0.0f, 1.0f, 0.0f };
+    XMStoreFloat4x4(&ubo.m_ViewMat, XMMatrixLookAtLH(XMLoadFloat3(&eyePos), XMLoadFloat3(&focusPos), XMLoadFloat3(&upDir)));
+    XMStoreFloat4x4(&ubo.m_ProjectionMat, XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), static_cast<float>(m_VkSwapChainExtent.width) / static_cast<float>(m_VkSwapChainExtent.height), 0.1f, 10.0f));
+
+    memcpy(m_VkUniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }
 
 #if defined(_DEBUG)

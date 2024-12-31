@@ -158,6 +158,7 @@ private:
 	VkExtent2D m_VkSwapChainExtent;
 	std::vector<VkImageView> m_VkSwapChainImageViews;
 	VkRenderPass m_VkRenderPass;
+	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkPipelineLayout;
 	VkPipeline m_VkGraphicsPipeline;
 	std::vector<VkFramebuffer> m_VkFrameBuffers;
@@ -170,6 +171,9 @@ private:
 	VkDeviceMemory m_VkVertexBufferMemory;
 	VkBuffer m_VkIndexBuffer;
 	VkDeviceMemory m_VkIndexBufferMemory;
+	std::vector<VkBuffer> m_VkUniformBuffers;
+	std::vector<VkDeviceMemory> m_VkUniformBuffersMemory;
+	std::vector<void*> m_VkUniformBuffersMapped;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
@@ -201,6 +205,9 @@ private:
 	void CreateVertexBuffer();
 	void CreateIndexBuffer();
 	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
+	void CreateDescriptorSetLayout();
+	void CreateUniformBuffers();
+	void UpdateUniformBuffer(uint32_t currentFrame) const;
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

@@ -33,7 +33,8 @@ void GraphicsAPI::DrawTestTriangles()
 #include <stb_image.h> //TEMPORARY
 
 GraphicsAPI::GraphicsAPI() :
-	m_IsInitialized{ false }
+	m_IsInitialized{ false },
+	m_VkPhysicalDeviceProperties{}
 {
 	CreateVkInstance();
 	CreateSurface();
@@ -52,6 +53,8 @@ GraphicsAPI::GraphicsAPI() :
 	CreateFrameBuffers();
 	CreateCommandPool();
 	CreateTextureImage();
+	CreateTextureImageView();
+	CreateTextureSampler();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
 	CreateUniformBuffers();
@@ -78,6 +81,8 @@ GraphicsAPI::~GraphicsAPI()
 
 	CleanupSwapchain();
 
+	vkDestroySampler(m_VkDevice, m_VkTextureSampler, nullptr);
+	vkDestroyImageView(m_VkDevice, m_VkTextureImageView, nullptr);
 	vkDestroyImage(m_VkDevice, m_VkTextureImage, nullptr);
 	vkFreeMemory(m_VkDevice, m_VkTextureImageMemory, nullptr);
 
@@ -293,6 +298,25 @@ void GraphicsAPI::CreateImage(uint32_t width, uint32_t height, VkFormat format, 
 	vkBindImageMemory(m_VkDevice, image, imageMemory, 0);
 }
 
+VkImageView GraphicsAPI::CreateImageView(VkImage image, VkFormat format) const
+{
+	VkImageViewCreateInfo viewInfo{};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	VkImageView imageView;
+	HandleVkResult(vkCreateImageView(m_VkDevice, &viewInfo, nullptr, &imageView));
+
+	return imageView;
+}
+
 void GraphicsAPI::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const
 {
 	const auto cmd{ BeginSingleTimeCmdBuffer() };
@@ -473,7 +497,7 @@ void GraphicsAPI::CreateSurface()
 
 void GraphicsAPI::SelectPhysicalDevice()
 {
-	uint32_t deviceCount = 0;
+	uint32_t deviceCount{};
 	vkEnumeratePhysicalDevices(m_VkInstance, &deviceCount, nullptr);
 
 	if (deviceCount == 0)
@@ -485,8 +509,9 @@ void GraphicsAPI::SelectPhysicalDevice()
 	// Use an ordered map to automatically sort candidates by increasing score
 	std::multimap<int, VkPhysicalDevice> candidates;
 
-	for (const auto& device : devices) {
-		int score = GradeDevice(device);
+	for (const auto& device : devices)
+	{
+		int score{ GradeDevice(device) };
 		candidates.insert(std::make_pair(score, device));
 	}
 
@@ -496,7 +521,8 @@ void GraphicsAPI::SelectPhysicalDevice()
 	
 	else
 		Logger::Get().LogError(L"Failed to find any suitable physical device.");
-	
+
+	vkGetPhysicalDeviceProperties(m_VkPhysicalDevice, &m_VkPhysicalDeviceProperties);
 }
 
 int GraphicsAPI::GradeDevice(VkPhysicalDevice device) const
@@ -506,7 +532,7 @@ int GraphicsAPI::GradeDevice(VkPhysicalDevice device) const
 	vkGetPhysicalDeviceProperties(device, &deviceProperties);
 	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
-	if (!deviceFeatures.geometryShader)
+	if (!deviceFeatures.geometryShader || !deviceFeatures.samplerAnisotropy)
 		return 0;
 
 	if (!FindQueueFamilies(device).IsComplete())
@@ -579,7 +605,8 @@ void GraphicsAPI::CreateLogicalDevice()
 		queueCreateInfos.push_back(queueCreateInfo);
 	}
 
-	const VkPhysicalDeviceFeatures deviceFeatures{};
+	VkPhysicalDeviceFeatures deviceFeatures{};
+	deviceFeatures.samplerAnisotropy = VK_TRUE;
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -741,25 +768,8 @@ void GraphicsAPI::CreateSwapchainImageViews()
 {
 	m_VkSwapChainImageViews.resize(m_VkSwapChainImages.size());
 
-	for (size_t i = 0; i < m_VkSwapChainImages.size(); ++i)
-	{
-		VkImageViewCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		createInfo.image = m_VkSwapChainImages[i];
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = m_VkSwapChainImageFormat;
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
-
-		HandleVkResult(vkCreateImageView(m_VkDevice, &createInfo, nullptr, &m_VkSwapChainImageViews[i]));
-	}
+	for (size_t i{}; i < m_VkSwapChainImages.size(); ++i)
+		m_VkSwapChainImageViews[i] = CreateImageView(m_VkSwapChainImages[i], m_VkSwapChainImageFormat);
 }
 
 void GraphicsAPI::CreateRenderPass()
@@ -836,8 +846,8 @@ VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) co
 
 void GraphicsAPI::CreateGraphicsPipeline()
 {
-	const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTriangles_VS.spv");
-	const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTriangles_PS.spv");
+	const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTrianglesTextured_VS.spv");
+	const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTrianglesTextured_PS.spv");
 
 	const VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode);
 	const VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode);
@@ -1189,10 +1199,23 @@ void GraphicsAPI::CreateDescriptorSetLayout()
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
+	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+	samplerLayoutBinding.binding = 1;
+	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerLayoutBinding.descriptorCount = 1;
+	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	samplerLayoutBinding.pImmutableSamplers = nullptr;
+
+	const std::array<VkDescriptorSetLayoutBinding, 2> bindings
+	{
+		uboLayoutBinding,
+		samplerLayoutBinding
+	};
+
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = 1;
-	layoutInfo.pBindings = &uboLayoutBinding;
+	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	layoutInfo.pBindings = bindings.data();
 
 	HandleVkResult(vkCreateDescriptorSetLayout(m_VkDevice, &layoutInfo, nullptr, &m_VkDescriptorSetLayout));
 }
@@ -1221,7 +1244,7 @@ void GraphicsAPI::UpdateUniformBuffer(uint32_t currentFrame) const
 
 	UBO ubo{};
 	XMStoreFloat4x4(&ubo.m_ModelMat, XMMatrixRotationY(time * XMConvertToRadians(90.0f)));
-	static XMFLOAT3 eyePos{ 2.0f, 2.0f, 2.0f };
+	static XMFLOAT3 eyePos{ 0.0f, 2.0f, 2.0f };
 	static XMFLOAT3 focusPos{ 0.0f, 0.0f, 0.0f };
 	static XMFLOAT3 upDir{ 0.0f, 1.0f, 0.0f };
 	XMStoreFloat4x4(&ubo.m_ViewMat, XMMatrixLookAtLH(XMLoadFloat3(&eyePos), XMLoadFloat3(&focusPos), XMLoadFloat3(&upDir)));
@@ -1232,14 +1255,16 @@ void GraphicsAPI::UpdateUniformBuffer(uint32_t currentFrame) const
 
 void GraphicsAPI::CreateDescriptorPool()
 {
-	VkDescriptorPoolSize poolSize{};
-	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSize.descriptorCount = static_cast<uint32_t>(k_MaxFramesInFlight);
+	std::array<VkDescriptorPoolSize, 2> poolSizes{};
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(k_MaxFramesInFlight);
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(k_MaxFramesInFlight);
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = 1;
-	poolInfo.pPoolSizes = &poolSize;
+	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolInfo.pPoolSizes = poolSizes.data();
 	poolInfo.maxSets = static_cast<uint32_t>(k_MaxFramesInFlight);
 
 	HandleVkResult(vkCreateDescriptorPool(m_VkDevice, &poolInfo, nullptr, &m_VkDescriptorPool));
@@ -1265,18 +1290,30 @@ void GraphicsAPI::CreateDescriptorSets()
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UBO);
 
-		VkWriteDescriptorSet descriptorWrite{};
-		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = m_VkDescriptorSets[i];
-		descriptorWrite.dstBinding = 0;
-		descriptorWrite.dstArrayElement = 0;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &bufferInfo;
-		descriptorWrite.pImageInfo = nullptr; // Optional
-		descriptorWrite.pTexelBufferView = nullptr; // Optional
+		VkDescriptorImageInfo imageInfo{};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = m_VkTextureImageView;
+		imageInfo.sampler = m_VkTextureSampler;
 
-		vkUpdateDescriptorSets(m_VkDevice, 1, &descriptorWrite, 0, nullptr);
+		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+
+		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[0].dstSet = m_VkDescriptorSets[i];
+		descriptorWrites[0].dstBinding = 0;
+		descriptorWrites[0].dstArrayElement = 0;
+		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrites[0].descriptorCount = 1;
+		descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[1].dstSet = m_VkDescriptorSets[i];
+		descriptorWrites[1].dstBinding = 1;
+		descriptorWrites[1].dstArrayElement = 0;
+		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[1].descriptorCount = 1;
+		descriptorWrites[1].pImageInfo = &imageInfo;
+
+		vkUpdateDescriptorSets(m_VkDevice, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
 
@@ -1308,6 +1345,34 @@ void GraphicsAPI::CreateTextureImage()
 
 	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
 	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
+}
+
+void GraphicsAPI::CreateTextureImageView()
+{
+	m_VkTextureImageView = CreateImageView(m_VkTextureImage, VK_FORMAT_R8G8B8A8_SRGB);
+}
+
+void GraphicsAPI::CreateTextureSampler()
+{
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.anisotropyEnable = VK_TRUE;
+	samplerInfo.maxAnisotropy = m_VkPhysicalDeviceProperties.limits.maxSamplerAnisotropy; //TODO: Use anisotropic level setting
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+
+	HandleVkResult(vkCreateSampler(m_VkDevice, &samplerInfo, nullptr, &m_VkTextureSampler));
 }
 
 #if defined(_DEBUG)

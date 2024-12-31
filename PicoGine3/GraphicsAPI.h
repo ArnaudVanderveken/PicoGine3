@@ -53,6 +53,7 @@ struct Vertex
 {
 	XMFLOAT2 m_PositionCS;
 	XMFLOAT3 m_Color;
+	XMFLOAT2 m_Texcoord;
 
 	static const VkVertexInputBindingDescription& GetBindingDescription()
 	{
@@ -64,9 +65,9 @@ struct Vertex
 		return bindingDescription;
 	}
 
-	static const std::array<VkVertexInputAttributeDescription, 2>& GetAttributeDescriptions()
+	static const std::array<VkVertexInputAttributeDescription, 3>& GetAttributeDescriptions()
 	{
-		static std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+		static std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
 		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -76,6 +77,11 @@ struct Vertex
 		attributeDescriptions[1].location = 1;
 		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attributeDescriptions[1].offset = offsetof(Vertex, m_Color);
+
+		attributeDescriptions[2].binding = 0;
+		attributeDescriptions[2].location = 2;
+		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[2].offset = offsetof(Vertex, m_Texcoord);
 
 		return attributeDescriptions;
 	}
@@ -108,10 +114,10 @@ private:
 
 	static inline const std::vector<Vertex> k_TestTrianglesVertices
 	{
-		{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
-		{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f } },
-		{ {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f } },
-		{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f } }
+		{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, {1.0f, 0.0f} },
+		{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 0.0f} },
+		{ {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }, {0.0f, 1.0f} },
+		{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f }, {1.0f, 1.0f} }
 	};
 
 	static inline const std::vector<uint32_t> k_TestTrianglesIndices
@@ -151,6 +157,7 @@ private:
 	VkInstance m_VkInstance;
 	VkSurfaceKHR m_VkSurface;
 	VkPhysicalDevice m_VkPhysicalDevice;
+	VkPhysicalDeviceProperties m_VkPhysicalDeviceProperties;
 	QueueFamilyIndices m_QueueFamilyIndices;
 	VkDevice m_VkDevice;
 	VkQueue m_VkGraphicsQueue, m_VkPresentQueue;
@@ -180,6 +187,8 @@ private:
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
 	VkImage m_VkTextureImage;
 	VkDeviceMemory m_VkTextureImageMemory;
+	VkImageView m_VkTextureImageView;
+	VkSampler m_VkTextureSampler;
 
 	VkCommandBuffer BeginSingleTimeCmdBuffer() const;
 	void EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const;
@@ -187,6 +196,7 @@ private:
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
 	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) const;
+	VkImageView CreateImageView(VkImage image, VkFormat format) const;
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED) const;
 
@@ -223,6 +233,8 @@ private:
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImage();
+	void CreateTextureImageView();
+	void CreateTextureSampler();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

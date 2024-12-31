@@ -1,6 +1,5 @@
 #ifndef GRAPHICSAPI_H
 #define GRAPHICSAPI_H
-#include <optional>
 
 #if defined(_DX12)
 
@@ -30,6 +29,7 @@ private:
 #elif defined(_VK)
 
 #include <vulkan/vulkan.h>
+#include <optional>
 
 struct QueueFamilyIndices
 {
@@ -178,9 +178,17 @@ private:
 	std::vector<void*> m_VkUniformBuffersMapped;
 	VkDescriptorPool m_VkDescriptorPool;
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
+	VkImage m_VkTextureImage;
+	VkDeviceMemory m_VkTextureImageMemory;
+
+	VkCommandBuffer BeginSingleTimeCmdBuffer() const;
+	void EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
+	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) const;
+	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
+	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED) const;
 
 	void CreateVkInstance();
 	void CreateSurface();
@@ -214,6 +222,7 @@ private:
 	void UpdateUniformBuffer(uint32_t currentFrame) const;
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
+	void CreateTextureImage();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

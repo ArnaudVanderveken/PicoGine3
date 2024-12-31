@@ -1283,7 +1283,7 @@ void GraphicsAPI::CreateDescriptorSets()
 void GraphicsAPI::CreateTextureImage()
 {
 	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels{ stbi_load("textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha) };
+	stbi_uc* pixels{ stbi_load("Resources/Textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha) };
 	const VkDeviceSize imageSize{ static_cast<VkDeviceSize>(texWidth) * texHeight * 4 };
 
 	if (!pixels)

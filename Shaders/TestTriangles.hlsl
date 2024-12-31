@@ -27,6 +27,15 @@ struct VSOutput
 	float3 color : COLOR;
 };
 
+struct UBO
+{
+	float4x4 modelMat;
+	float4x4 viewMat;
+	float4x4 projectionMat;
+};
+
+cbuffer ubo : register(b0, space0) { UBO ubo; }
+
 // STAGES
 VSOutput VSMain(VSInput input)
 {

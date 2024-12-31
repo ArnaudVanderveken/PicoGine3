@@ -81,6 +81,13 @@ struct Vertex
 	}
 };
 
+struct UBO
+{
+	XMFLOAT4X4 m_ModelMat;
+	XMFLOAT4X4 m_ViewMat;
+	XMFLOAT4X4 m_ProjectionMat;
+};
+
 class GraphicsAPI
 {
 public:
@@ -165,7 +172,7 @@ private:
 	VkDeviceMemory m_VkIndexBufferMemory;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
-	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
 
 	void CreateVkInstance();
 	void CreateSurface();

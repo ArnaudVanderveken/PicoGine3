@@ -189,7 +189,7 @@ void GraphicsAPI::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMe
     vkBindBufferMemory(m_VkDevice, buffer, bufferMemory, 0);
 }
 
-void GraphicsAPI::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+void GraphicsAPI::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -697,8 +697,8 @@ VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) co
 
 void GraphicsAPI::CreateGraphicsPipeline()
 {
-    const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTriangle_VS.spv");
-    const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTriangle_PS.spv");
+    const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTriangles_VS.spv");
+    const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTriangles_PS.spv");
 
     const VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode);
     const VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode);

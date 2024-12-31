@@ -50,6 +50,8 @@ GraphicsAPI::GraphicsAPI() :
     CreateVertexBuffer();
     CreateIndexBuffer();
     CreateUniformBuffers();
+    CreateDescriptorPool();
+    CreateDescriptorSets();
     CreateCommandBuffer();
     CreateSyncObjects();
 
@@ -76,6 +78,8 @@ GraphicsAPI::~GraphicsAPI()
         vkDestroyBuffer(m_VkDevice, m_VkUniformBuffers[i], nullptr);
         vkFreeMemory(m_VkDevice, m_VkUniformBuffersMemory[i], nullptr);
     }
+
+    vkDestroyDescriptorPool(m_VkDevice, m_VkDescriptorPool, nullptr);
 
     vkDestroyDescriptorSetLayout(m_VkDevice, m_VkDescriptorSetLayout, nullptr);
 
@@ -947,13 +951,11 @@ void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, ui
     };
 
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
     vkCmdBindIndexBuffer(commandBuffer, m_VkIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
 
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(k_TestTrianglesIndices.size()), 1, 0, 0, 0);
-
     vkCmdEndRenderPass(commandBuffer);
-
     HandleVkResult(vkEndCommandBuffer(commandBuffer));
 }
 
@@ -1103,6 +1105,56 @@ void GraphicsAPI::UpdateUniformBuffer(uint32_t currentFrame) const
     XMStoreFloat4x4(&ubo.m_ProjectionMat, XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), static_cast<float>(m_VkSwapChainExtent.width) / static_cast<float>(m_VkSwapChainExtent.height), 0.1f, 10.0f));
 
     memcpy(m_VkUniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+}
+
+void GraphicsAPI::CreateDescriptorPool()
+{
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = static_cast<uint32_t>(k_MaxFramesInFlight);
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = static_cast<uint32_t>(k_MaxFramesInFlight);
+
+    HandleVkResult(vkCreateDescriptorPool(m_VkDevice, &poolInfo, nullptr, &m_VkDescriptorPool));
+}
+
+void GraphicsAPI::CreateDescriptorSets()
+{
+	const std::vector<VkDescriptorSetLayout> layouts(k_MaxFramesInFlight, m_VkDescriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_VkDescriptorPool;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(k_MaxFramesInFlight);
+    allocInfo.pSetLayouts = layouts.data();
+
+    m_VkDescriptorSets.resize(k_MaxFramesInFlight);
+
+    HandleVkResult(vkAllocateDescriptorSets(m_VkDevice, &allocInfo, m_VkDescriptorSets.data()));
+
+    for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+    {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = m_VkUniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UBO);
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = m_VkDescriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = nullptr; // Optional
+        descriptorWrite.pTexelBufferView = nullptr; // Optional
+
+        vkUpdateDescriptorSets(m_VkDevice, 1, &descriptorWrite, 0, nullptr);
+    }
 }
 
 #if defined(_DEBUG)

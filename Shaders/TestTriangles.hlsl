@@ -41,7 +41,7 @@ VSOutput VSMain(VSInput input)
 {
 	VSOutput output = (VSOutput)0;
 
-	output.positionCS = float4(input.positionCS, 0.0f, 1.0f);
+	output.positionCS = mul(ubo.projectionMat, mul(ubo.viewMat, mul(ubo.modelMat, float4(input.positionCS, 0.0f, 1.0f))));
 	output.color = input.color;
 
 	return output;

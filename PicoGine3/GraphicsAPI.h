@@ -83,9 +83,9 @@ struct Vertex
 
 struct UBO
 {
-	XMFLOAT4X4 m_ModelMat;
-	XMFLOAT4X4 m_ViewMat;
-	XMFLOAT4X4 m_ProjectionMat;
+	alignas(16) XMFLOAT4X4 m_ModelMat;
+	alignas(16) XMFLOAT4X4 m_ViewMat;
+	alignas(16) XMFLOAT4X4 m_ProjectionMat;
 };
 
 class GraphicsAPI

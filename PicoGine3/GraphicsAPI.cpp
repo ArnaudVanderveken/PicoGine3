@@ -29,8 +29,15 @@ void GraphicsAPI::DrawTestTriangles()
 
 #elif defined(_VK)
 
+#pragma warning(push)
+#pragma warning(disable:6011)
+#pragma warning(disable:26819)
+#pragma warning(disable:6262)
+#pragma warning(disable:6308)
+#pragma warning(disable:28182)
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h> //TEMPORARY
+#pragma warning(pop)
 
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false },
@@ -43,8 +50,8 @@ GraphicsAPI::GraphicsAPI() :
 #endif //defined(_DEBUG)
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
-	vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.graphicsFamily.value(), 0, &m_VkGraphicsQueue);
-	vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.presentFamily.value(), 0, &m_VkPresentQueue);
+	vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.m_GraphicsFamily.value(), 0, &m_VkGraphicsQueue);
+	vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.m_PresentFamily.value(), 0, &m_VkPresentQueue);
 	CreateSwapchain();
 	CreateSwapchainImageViews();
 	CreateRenderPass();
@@ -70,7 +77,7 @@ GraphicsAPI::~GraphicsAPI()
 {
 	vkDeviceWaitIdle(m_VkDevice);
 
-	for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
 		vkDestroySemaphore(m_VkDevice, m_VkImageAvailableSemaphores[i], nullptr);
 		vkDestroySemaphore(m_VkDevice, m_VkRenderFinishedSemaphores[i], nullptr);
@@ -86,7 +93,7 @@ GraphicsAPI::~GraphicsAPI()
 	vkDestroyImage(m_VkDevice, m_VkTextureImage, nullptr);
 	vkFreeMemory(m_VkDevice, m_VkTextureImageMemory, nullptr);
 
-	for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
 		vkDestroyBuffer(m_VkDevice, m_VkUniformBuffers[i], nullptr);
 		vkFreeMemory(m_VkDevice, m_VkUniformBuffersMemory[i], nullptr);
@@ -192,7 +199,7 @@ void GraphicsAPI::DrawTestTriangles()
 	else if (vkResult != VK_SUCCESS)
 		HandleVkResult(vkResult);
 
-	m_CurrentFrame = (m_CurrentFrame + 1) % k_MaxFramesInFlight;
+	m_CurrentFrame = (m_CurrentFrame + 1) % sk_MaxFramesInFlight;
 }
 
 VkCommandBuffer GraphicsAPI::BeginSingleTimeCmdBuffer() const
@@ -258,8 +265,6 @@ void GraphicsAPI::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 	const auto cmd{ BeginSingleTimeCmdBuffer() };
 
 	VkBufferCopy copyRegion{};
-	copyRegion.srcOffset = 0; // Optional
-	copyRegion.dstOffset = 0; // Optional
 	copyRegion.size = size;
 	vkCmdCopyBuffer(cmd, srcBuffer, dstBuffer, 1, &copyRegion);
 
@@ -507,11 +512,11 @@ void GraphicsAPI::SelectPhysicalDevice()
 	vkEnumeratePhysicalDevices(m_VkInstance, &deviceCount, devices.data());
 
 	// Use an ordered map to automatically sort candidates by increasing score
-	std::multimap<int, VkPhysicalDevice> candidates;
+	std::multimap<uint32_t, VkPhysicalDevice> candidates;
 
 	for (const auto& device : devices)
 	{
-		int score{ GradeDevice(device) };
+		uint32_t score{ GradeDevice(device) };
 		candidates.insert(std::make_pair(score, device));
 	}
 
@@ -525,7 +530,7 @@ void GraphicsAPI::SelectPhysicalDevice()
 	vkGetPhysicalDeviceProperties(m_VkPhysicalDevice, &m_VkPhysicalDeviceProperties);
 }
 
-int GraphicsAPI::GradeDevice(VkPhysicalDevice device) const
+uint32_t GraphicsAPI::GradeDevice(VkPhysicalDevice device) const
 {
 	VkPhysicalDeviceProperties deviceProperties;
 	VkPhysicalDeviceFeatures deviceFeatures;
@@ -542,10 +547,10 @@ int GraphicsAPI::GradeDevice(VkPhysicalDevice device) const
 		return 0;
 
 	const SwapChainSupportDetails swapChainSupport{ QuerySwapChainSupport(device) };
-	if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty())
+	if (swapChainSupport.m_Formats.empty() || swapChainSupport.m_PresentModes.empty())
 		return 0;
 
-	int score{};
+	uint32_t score{};
 
 	// Discrete GPUs have a significant performance advantage
 	if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
@@ -571,12 +576,12 @@ QueueFamilyIndices GraphicsAPI::FindQueueFamilies(VkPhysicalDevice device) const
 	for (const auto& queueFamily : queueFamilies)
 	{
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-			indices.graphicsFamily = i;
+			indices.m_GraphicsFamily = i;
 
 		VkBool32 presentSupport{};
 		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_VkSurface, &presentSupport);
 		if (presentSupport)
-			indices.presentFamily = i;
+			indices.m_PresentFamily = i;
 
 		if (indices.IsComplete())
 			break;
@@ -592,7 +597,7 @@ void GraphicsAPI::CreateLogicalDevice()
 	m_QueueFamilyIndices = FindQueueFamilies(m_VkPhysicalDevice);
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-	const std::set<uint32_t> uniqueQueueFamilies = { m_QueueFamilyIndices.graphicsFamily.value(), m_QueueFamilyIndices.presentFamily.value() };
+	const std::set<uint32_t> uniqueQueueFamilies = { m_QueueFamilyIndices.m_GraphicsFamily.value(), m_QueueFamilyIndices.m_PresentFamily.value() };
 
 	constexpr float queuePriority{ 1.0f };
 	for (const auto queueFamily : uniqueQueueFamilies)
@@ -649,23 +654,23 @@ SwapChainSupportDetails GraphicsAPI::QuerySwapChainSupport(VkPhysicalDevice devi
 {
 	SwapChainSupportDetails details;
 
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_VkSurface, &details.capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_VkSurface, &details.m_Capabilities);
 
 	uint32_t formatCount;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_VkSurface, &formatCount, nullptr);
 
 	if (formatCount != 0)
 	{
-		details.formats.resize(formatCount);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_VkSurface, &formatCount, details.formats.data());
+		details.m_Formats.resize(formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_VkSurface, &formatCount, details.m_Formats.data());
 	}
 
 	uint32_t presentModeCount;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_VkSurface, &presentModeCount, nullptr);
 
 	if (presentModeCount != 0) {
-		details.presentModes.resize(presentModeCount);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_VkSurface, &presentModeCount, details.presentModes.data());
+		details.m_PresentModes.resize(presentModeCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_VkSurface, &presentModeCount, details.m_PresentModes.data());
 	}
 
 	return details;
@@ -713,14 +718,14 @@ void GraphicsAPI::CreateSwapchain()
 {
 	const SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(m_VkPhysicalDevice);
 
-	const VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
-	const VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
-	const VkExtent2D extent = ChooseSwapExtent(swapChainSupport.capabilities);
+	const VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.m_Formats);
+	const VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.m_PresentModes);
+	const VkExtent2D extent = ChooseSwapExtent(swapChainSupport.m_Capabilities);
 
-	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+	uint32_t imageCount = swapChainSupport.m_Capabilities.minImageCount + 1;
 
-	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
-		imageCount = swapChainSupport.capabilities.maxImageCount;
+	if (swapChainSupport.m_Capabilities.maxImageCount > 0 && imageCount > swapChainSupport.m_Capabilities.maxImageCount)
+		imageCount = swapChainSupport.m_Capabilities.maxImageCount;
 
 	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -733,9 +738,9 @@ void GraphicsAPI::CreateSwapchain()
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	const uint32_t queueFamilyIndices[] = { m_QueueFamilyIndices.graphicsFamily.value(), m_QueueFamilyIndices.presentFamily.value() };
+	const uint32_t queueFamilyIndices[] = { m_QueueFamilyIndices.m_GraphicsFamily.value(), m_QueueFamilyIndices.m_PresentFamily.value() };
 
-	if (m_QueueFamilyIndices.graphicsFamily != m_QueueFamilyIndices.presentFamily)
+	if (m_QueueFamilyIndices.m_GraphicsFamily != m_QueueFamilyIndices.m_PresentFamily)
 	{
 		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 		createInfo.queueFamilyIndexCount = 2;
@@ -748,7 +753,7 @@ void GraphicsAPI::CreateSwapchain()
 		createInfo.pQueueFamilyIndices = nullptr; // Optional
 	}
 
-	createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+	createInfo.preTransform = swapChainSupport.m_Capabilities.currentTransform;
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	createInfo.presentMode = presentMode;
 	createInfo.clipped = VK_TRUE;
@@ -1017,20 +1022,20 @@ void GraphicsAPI::CreateCommandPool()
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	poolInfo.queueFamilyIndex = m_QueueFamilyIndices.graphicsFamily.value();
+	poolInfo.queueFamilyIndex = m_QueueFamilyIndices.m_GraphicsFamily.value();
 
 	HandleVkResult(vkCreateCommandPool(m_VkDevice, &poolInfo, nullptr, &m_VkCommandPool));
 }
 
 void GraphicsAPI::CreateCommandBuffer()
 {
-	m_VkCommandBuffers.resize(k_MaxFramesInFlight);
+	m_VkCommandBuffers.resize(sk_MaxFramesInFlight);
 
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.commandPool = m_VkCommandPool;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = k_MaxFramesInFlight;
+	allocInfo.commandBufferCount = sk_MaxFramesInFlight;
 
 	HandleVkResult(vkAllocateCommandBuffers(m_VkDevice, &allocInfo, m_VkCommandBuffers.data()));
 }
@@ -1087,16 +1092,16 @@ void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, ui
 	vkCmdBindIndexBuffer(commandBuffer, m_VkIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
 
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(k_TestTrianglesIndices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(sk_TestTrianglesIndices.size()), 1, 0, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 	HandleVkResult(vkEndCommandBuffer(commandBuffer));
 }
 
 void GraphicsAPI::CreateSyncObjects()
 {
-	m_VkImageAvailableSemaphores.resize(k_MaxFramesInFlight);
-	m_VkRenderFinishedSemaphores.resize(k_MaxFramesInFlight);
-	m_VkInFlightFences.resize(k_MaxFramesInFlight);
+	m_VkImageAvailableSemaphores.resize(sk_MaxFramesInFlight);
+	m_VkRenderFinishedSemaphores.resize(sk_MaxFramesInFlight);
+	m_VkInFlightFences.resize(sk_MaxFramesInFlight);
 
 	VkSemaphoreCreateInfo semaphoreInfo{};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1105,7 +1110,7 @@ void GraphicsAPI::CreateSyncObjects()
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
 		HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkImageAvailableSemaphores[i]));
 		HandleVkResult(vkCreateSemaphore(m_VkDevice, &semaphoreInfo, nullptr, &m_VkRenderFinishedSemaphores[i]));
@@ -1137,7 +1142,7 @@ void GraphicsAPI::RecreateSwapchain()
 
 void GraphicsAPI::CreateVertexBuffer()
 {
-	const VkDeviceSize bufferSize{ sizeof(Vertex) * k_TestTrianglesVertices.size() };
+	const VkDeviceSize bufferSize{ sizeof(Vertex) * sk_TestTrianglesVertices.size() };
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1145,7 +1150,7 @@ void GraphicsAPI::CreateVertexBuffer()
 
 	void* data;
 	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, k_TestTrianglesVertices.data(), bufferSize);
+	memcpy(data, sk_TestTrianglesVertices.data(), bufferSize);
 	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
 
 	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkVertexBuffer, m_VkVertexBufferMemory);
@@ -1158,7 +1163,7 @@ void GraphicsAPI::CreateVertexBuffer()
 
 void GraphicsAPI::CreateIndexBuffer()
 {
-	const VkDeviceSize bufferSize{ sizeof(uint32_t) * k_TestTrianglesIndices.size() };
+	const VkDeviceSize bufferSize{ sizeof(uint32_t) * sk_TestTrianglesIndices.size() };
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1166,7 +1171,7 @@ void GraphicsAPI::CreateIndexBuffer()
 
 	void* data;
 	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, k_TestTrianglesIndices.data(), bufferSize);
+	memcpy(data, sk_TestTrianglesIndices.data(), bufferSize);
 	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
 
 	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkIndexBuffer, m_VkIndexBufferMemory);
@@ -1224,11 +1229,11 @@ void GraphicsAPI::CreateUniformBuffers()
 {
 	constexpr VkDeviceSize bufferSize{ sizeof(UBO) };
 
-	m_VkUniformBuffers.resize(k_MaxFramesInFlight);
-	m_VkUniformBuffersMemory.resize(k_MaxFramesInFlight);
-	m_VkUniformBuffersMapped.resize(k_MaxFramesInFlight);
+	m_VkUniformBuffers.resize(sk_MaxFramesInFlight);
+	m_VkUniformBuffersMemory.resize(sk_MaxFramesInFlight);
+	m_VkUniformBuffersMapped.resize(sk_MaxFramesInFlight);
 
-	for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
 		CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_VkUniformBuffers[i], m_VkUniformBuffersMemory[i]);
 		vkMapMemory(m_VkDevice, m_VkUniformBuffersMemory[i], 0, bufferSize, 0, &m_VkUniformBuffersMapped[i]);
@@ -1257,33 +1262,33 @@ void GraphicsAPI::CreateDescriptorPool()
 {
 	std::array<VkDescriptorPoolSize, 2> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(k_MaxFramesInFlight);
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(sk_MaxFramesInFlight);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(k_MaxFramesInFlight);
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(sk_MaxFramesInFlight);
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(k_MaxFramesInFlight);
+	poolInfo.maxSets = static_cast<uint32_t>(sk_MaxFramesInFlight);
 
 	HandleVkResult(vkCreateDescriptorPool(m_VkDevice, &poolInfo, nullptr, &m_VkDescriptorPool));
 }
 
 void GraphicsAPI::CreateDescriptorSets()
 {
-	const std::vector<VkDescriptorSetLayout> layouts(k_MaxFramesInFlight, m_VkDescriptorSetLayout);
+	const std::vector<VkDescriptorSetLayout> layouts(sk_MaxFramesInFlight, m_VkDescriptorSetLayout);
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = m_VkDescriptorPool;
-	allocInfo.descriptorSetCount = static_cast<uint32_t>(k_MaxFramesInFlight);
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(sk_MaxFramesInFlight);
 	allocInfo.pSetLayouts = layouts.data();
 
-	m_VkDescriptorSets.resize(k_MaxFramesInFlight);
+	m_VkDescriptorSets.resize(sk_MaxFramesInFlight);
 
 	HandleVkResult(vkAllocateDescriptorSets(m_VkDevice, &allocInfo, m_VkDescriptorSets.data()));
 
-	for (size_t i{}; i < k_MaxFramesInFlight; ++i)
+	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = m_VkUniformBuffers[i];
@@ -1379,10 +1384,10 @@ void GraphicsAPI::CreateTextureSampler()
 
 VKAPI_ATTR VkBool32 VKAPI_CALL GraphicsAPI::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT /*messageType*/, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* /*pUserData*/)
 {
-	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+	if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
 		Logger::Get().LogWarning(StrUtils::cstr2stdwstr(pCallbackData->pMessage));
 
-	else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+	else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 		Logger::Get().LogError(StrUtils::cstr2stdwstr(pCallbackData->pMessage));
 
 	return VK_FALSE;

@@ -33,20 +33,20 @@ private:
 
 struct QueueFamilyIndices
 {
-	std::optional<uint32_t> graphicsFamily;
-	std::optional<uint32_t> presentFamily;
+	std::optional<uint32_t> m_GraphicsFamily{};
+	std::optional<uint32_t> m_PresentFamily{};
 
-	bool IsComplete() const
+	[[nodiscard]] bool IsComplete() const
 	{
-		return graphicsFamily.has_value() && presentFamily.has_value();
+		return m_GraphicsFamily.has_value() && m_PresentFamily.has_value();
 	}
 };
 
 struct SwapChainSupportDetails
 {
-	VkSurfaceCapabilitiesKHR capabilities;
-	std::vector<VkSurfaceFormatKHR> formats;
-	std::vector<VkPresentModeKHR> presentModes;
+	VkSurfaceCapabilitiesKHR m_Capabilities{};
+	std::vector<VkSurfaceFormatKHR> m_Formats{};
+	std::vector<VkPresentModeKHR> m_PresentModes{};
 };
 
 struct Vertex
@@ -112,7 +112,7 @@ public:
 private:
 	bool m_IsInitialized;
 
-	static inline const std::vector<Vertex> k_TestTrianglesVertices
+	static inline const std::vector<Vertex> sk_TestTrianglesVertices
 	{
 		{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, {1.0f, 0.0f} },
 		{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 0.0f} },
@@ -120,7 +120,7 @@ private:
 		{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f }, {1.0f, 1.0f} }
 	};
 
-	static inline const std::vector<uint32_t> k_TestTrianglesIndices
+	static inline const std::vector<uint32_t> sk_TestTrianglesIndices
 	{
 		0, 1, 2,
 		2, 3, 0,
@@ -129,13 +129,13 @@ private:
 	};
 
 #if defined(_DEBUG)
-	const std::vector<const char*> m_ValidationLayers
+	std::vector<const char*> m_ValidationLayers
 	{
 		"VK_LAYER_KHRONOS_validation",
 	};
 #endif //defined(_DEBUG)
 
-	const std::vector<const char*> m_RequiredInstanceExtensions
+	std::vector<const char*> m_RequiredInstanceExtensions
 	{
 		VK_KHR_SURFACE_EXTENSION_NAME,
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
@@ -144,14 +144,14 @@ private:
 #endif //defined(_DEBUG)
 	};
 
-	const std::vector<const char*> m_OptionalInstanceExtensions{};
+	std::vector<const char*> m_OptionalInstanceExtensions{};
 
-	const std::vector<const char*> m_DeviceExtensions
+	std::vector<const char*> m_DeviceExtensions
 	{
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	};
 
-	static constexpr uint32_t k_MaxFramesInFlight{ 2 };
+	static constexpr uint32_t sk_MaxFramesInFlight{ 2 };
 	uint32_t m_CurrentFrame{};
 
 	VkInstance m_VkInstance;
@@ -190,7 +190,7 @@ private:
 	VkImageView m_VkTextureImageView;
 	VkSampler m_VkTextureSampler;
 
-	VkCommandBuffer BeginSingleTimeCmdBuffer() const;
+	[[nodiscard]] VkCommandBuffer BeginSingleTimeCmdBuffer() const;
 	void EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
@@ -203,7 +203,7 @@ private:
 	void CreateVkInstance();
 	void CreateSurface();
 	void SelectPhysicalDevice();
-	int GradeDevice(VkPhysicalDevice device) const;
+	uint32_t GradeDevice(VkPhysicalDevice device) const;
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
 	void CreateLogicalDevice();
 	bool CheckDeviceExtensionsSupport(VkPhysicalDevice device) const;
@@ -226,7 +226,7 @@ private:
 	void RecreateSwapchain();
 	void CreateVertexBuffer();
 	void CreateIndexBuffer();
-	uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
+	[[nodiscard]] uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 	void CreateDescriptorSetLayout();
 	void CreateUniformBuffers();
 	void UpdateUniformBuffer(uint32_t currentFrame) const;

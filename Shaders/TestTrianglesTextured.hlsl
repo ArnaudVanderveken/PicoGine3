@@ -11,7 +11,7 @@ struct VSInput
 #if defined(_VK)
 	[[vk::location(0)]]
 #endif
-	float2 positionCS : POSITION;
+	float3 positionOS : POSITION;
 #if defined(_VK)
 	[[vk::location(1)]]
 #endif
@@ -52,7 +52,7 @@ VSOutput VSMain(VSInput input)
 {
 	VSOutput output = (VSOutput)0;
 
-	output.positionCS = mul(ubo.projectionMat, mul(ubo.viewMat, mul(ubo.modelMat, float4(input.positionCS, 0.0f, 1.0f))));
+	output.positionCS = mul(ubo.projectionMat, mul(ubo.viewMat, mul(ubo.modelMat, float4(input.positionOS, 1.0f))));
 	output.color = input.color;
 	output.texcoord = input.texcoord;
 

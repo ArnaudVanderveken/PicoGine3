@@ -220,6 +220,7 @@ private:
 	std::vector<void*> m_VkUniformBuffersMapped;
 	VkDescriptorPool m_VkDescriptorPool;
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
+	uint32_t m_MipLevels;
 	VkImage m_VkTextureImage;
 	VkDeviceMemory m_VkTextureImageMemory;
 	VkImageView m_VkTextureImageView;
@@ -233,10 +234,10 @@ private:
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
-	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) const;
-	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) const;
+	void CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) const;
+	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) const;
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
-	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED) const;
+	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED) const;
 
 	void CreateVkInstance();
 	void CreateSurface();
@@ -274,10 +275,11 @@ private:
 	void CreateTextureImageView();
 	void CreateTextureSampler();
 	void CreateDepthResources();
-	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
-	VkFormat FindDepthFormat() const;
+	[[nodiscard]] VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
+	[[nodiscard]] VkFormat FindDepthFormat() const;
 	static bool HasStencilComponent(VkFormat format);
 	void LoadTestModel();
+	void GenerateMipmaps(VkImage image, VkFormat format, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) const;
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

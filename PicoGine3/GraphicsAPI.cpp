@@ -39,6 +39,10 @@ void GraphicsAPI::DrawTestTriangles()
 #include <stb_image.h> //TEMPORARY
 #pragma warning(pop)
 
+#include <assimp/Importer.hpp> //TEMPORARY
+#include <assimp/scene.h> //TEMPORARY
+#include <assimp/postprocess.h> //TEMPORARY
+
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false },
 	m_VkPhysicalDeviceProperties{}
@@ -63,6 +67,7 @@ GraphicsAPI::GraphicsAPI() :
 	CreateTextureImage();
 	CreateTextureImageView();
 	CreateTextureSampler();
+	LoadTestModel();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
 	CreateUniformBuffers();
@@ -960,7 +965,7 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f; // Optional
 	rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -1142,7 +1147,7 @@ void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, ui
 	vkCmdBindIndexBuffer(commandBuffer, m_VkIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
 
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(sk_TestTrianglesIndices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_Indices.size()), 1, 0, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 	HandleVkResult(vkEndCommandBuffer(commandBuffer));
 }
@@ -1197,7 +1202,7 @@ void GraphicsAPI::RecreateSwapchain()
 
 void GraphicsAPI::CreateVertexBuffer()
 {
-	const VkDeviceSize bufferSize{ sizeof(Vertex) * sk_TestTrianglesVertices.size() };
+	const VkDeviceSize bufferSize{ sizeof(Vertex) * m_Vertices.size() };
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1205,7 +1210,7 @@ void GraphicsAPI::CreateVertexBuffer()
 
 	void* data;
 	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, sk_TestTrianglesVertices.data(), bufferSize);
+	memcpy(data, m_Vertices.data(), bufferSize);
 	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
 
 	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkVertexBuffer, m_VkVertexBufferMemory);
@@ -1218,7 +1223,7 @@ void GraphicsAPI::CreateVertexBuffer()
 
 void GraphicsAPI::CreateIndexBuffer()
 {
-	const VkDeviceSize bufferSize{ sizeof(uint32_t) * sk_TestTrianglesIndices.size() };
+	const VkDeviceSize bufferSize{ sizeof(uint32_t) * m_Indices.size() };
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1226,7 +1231,7 @@ void GraphicsAPI::CreateIndexBuffer()
 
 	void* data;
 	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, sk_TestTrianglesIndices.data(), bufferSize);
+	memcpy(data, m_Indices.data(), bufferSize);
 	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
 
 	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkIndexBuffer, m_VkIndexBufferMemory);
@@ -1304,11 +1309,11 @@ void GraphicsAPI::UpdateUniformBuffer(uint32_t currentFrame) const
 
 	UBO ubo{};
 	XMStoreFloat4x4(&ubo.m_ModelMat, XMMatrixRotationY(time * XMConvertToRadians(90.0f)));
-	static XMFLOAT3 eyePos{ 0.0f, 2.0f, 2.0f };
+	static XMFLOAT3 eyePos{ 0.0f, 1.5f, -3.0f };
 	static XMFLOAT3 focusPos{ 0.0f, 0.0f, 0.0f };
 	static XMFLOAT3 upDir{ 0.0f, 1.0f, 0.0f };
 	XMStoreFloat4x4(&ubo.m_ViewMat, XMMatrixLookAtLH(XMLoadFloat3(&eyePos), XMLoadFloat3(&focusPos), XMLoadFloat3(&upDir)));
-	XMStoreFloat4x4(&ubo.m_ProjectionMat, XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), static_cast<float>(m_VkSwapChainExtent.width) / static_cast<float>(m_VkSwapChainExtent.height), 0.1f, 10.0f));
+	XMStoreFloat4x4(&ubo.m_ProjectionMat, XMMatrixMultiply(XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), static_cast<float>(m_VkSwapChainExtent.width) / static_cast<float>(m_VkSwapChainExtent.height), 0.1f, 10.0f), XMMatrixScaling(1.0f, -1.0f, 1.0f)));
 
 	memcpy(m_VkUniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }
@@ -1380,7 +1385,7 @@ void GraphicsAPI::CreateDescriptorSets()
 void GraphicsAPI::CreateTextureImage()
 {
 	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels{ stbi_load("Resources/Textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha) };
+	stbi_uc* pixels{ stbi_load("Resources/Textures/viking_room.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha) };
 	const VkDeviceSize imageSize{ static_cast<VkDeviceSize>(texWidth) * texHeight * 4 };
 
 	if (!pixels)
@@ -1468,6 +1473,46 @@ VkFormat GraphicsAPI::FindDepthFormat() const
 bool GraphicsAPI::HasStencilComponent(VkFormat format)
 {
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+void GraphicsAPI::LoadTestModel()
+{
+	Assimp::Importer importer;
+
+	const aiScene* scene{ importer.ReadFile("Resources/Models/viking_room.obj", aiProcess_Triangulate | aiProcess_MakeLeftHanded | aiProcess_FlipUVs) };
+
+	if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+		Logger::Get().LogError(L"Error::Assimp: " + StrUtils::cstr2stdwstr(importer.GetErrorString()) + L"\n");
+
+	const aiMesh* mesh{ scene->mMeshes[0] };
+	m_Indices.reserve(mesh->mNumVertices); // Can't reserve for m_Vertices since size is unknown
+	std::unordered_map<Vertex, uint32_t> uniqueVertices;
+
+	for (uint32_t i{}; i < mesh->mNumVertices; ++i)
+	{
+		Vertex vertex{};
+
+		// Extract position
+		vertex.m_Position.x = mesh->mVertices[i].x;
+		vertex.m_Position.y = mesh->mVertices[i].y;
+		vertex.m_Position.z = mesh->mVertices[i].z;
+
+		// Extract UV coordinates (if available)
+		if (mesh->mTextureCoords[0])
+		{
+			vertex.m_Texcoord.x = mesh->mTextureCoords[0][i].x;
+			vertex.m_Texcoord.y = mesh->mTextureCoords[0][i].y;
+		}
+
+		if (!uniqueVertices.contains(vertex))
+		{
+			// Add new vertex
+			uniqueVertices[vertex] = static_cast<uint32_t>(m_Vertices.size());
+			m_Vertices.emplace_back(vertex);
+		}
+
+		m_Indices.emplace_back(uniqueVertices[vertex]);
+	}
 }
 
 #if defined(_DEBUG)

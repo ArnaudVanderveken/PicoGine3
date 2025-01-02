@@ -51,9 +51,21 @@ struct SwapChainSupportDetails
 
 struct Vertex
 {
-	XMFLOAT3 m_Position;
-	XMFLOAT3 m_Color;
-	XMFLOAT2 m_Texcoord;
+	XMFLOAT3 m_Position{ 0.0f, 0.0f, 0.0f };
+	XMFLOAT3 m_Color{ 1.0f, 1.0f, 1.0f };
+	XMFLOAT2 m_Texcoord{ 0.0f, 0.0f };
+
+	bool operator==(const Vertex& other) const
+	{
+		return m_Position.x == other.m_Position.x
+			&& m_Position.y == other.m_Position.y
+			&& m_Position.z == other.m_Position.z
+			&& m_Color.x == other.m_Color.x
+			&& m_Color.y == other.m_Color.y
+			&& m_Color.z == other.m_Color.z
+			&& m_Texcoord.x == other.m_Texcoord.x
+			&& m_Texcoord.y == other.m_Texcoord.y;
+	}
 
 	static const VkVertexInputBindingDescription& GetBindingDescription()
 	{
@@ -84,6 +96,18 @@ struct Vertex
 		attributeDescriptions[2].offset = offsetof(Vertex, m_Texcoord);
 
 		return attributeDescriptions;
+	}
+};
+
+template <>
+struct std::hash<Vertex>
+{
+	std::size_t operator()(const Vertex& vertex) const noexcept
+	{
+		const std::size_t h1 = std::hash<float>()(vertex.m_Position.x) ^ (std::hash<float>()(vertex.m_Position.y) << 1) ^ (std::hash<float>()(vertex.m_Position.z) << 2);
+		const std::size_t h2 = std::hash<float>()(vertex.m_Color.x) ^ (std::hash<float>()(vertex.m_Color.y) << 1) ^ (std::hash<float>()(vertex.m_Color.z) << 2);
+		const std::size_t h3 = std::hash<float>()(vertex.m_Texcoord.x) ^ (std::hash<float>()(vertex.m_Texcoord.y) << 1);
+		return h1 ^ h2 ^ h3;
 	}
 };
 
@@ -185,6 +209,8 @@ private:
 	std::vector<VkSemaphore> m_VkImageAvailableSemaphores;
 	std::vector<VkSemaphore> m_VkRenderFinishedSemaphores;
 	std::vector<VkFence> m_VkInFlightFences;
+	std::vector<Vertex> m_Vertices;
+	std::vector<uint32_t> m_Indices;
 	VkBuffer m_VkVertexBuffer;
 	VkDeviceMemory m_VkVertexBufferMemory;
 	VkBuffer m_VkIndexBuffer;
@@ -251,6 +277,7 @@ private:
 	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
 	VkFormat FindDepthFormat() const;
 	static bool HasStencilComponent(VkFormat format);
+	void LoadTestModel();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

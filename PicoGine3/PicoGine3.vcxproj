@@ -89,7 +89,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_DX12;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -97,13 +97,15 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+robocopy "$(SolutionDir)3rdParty\assimp-5.4.3\bin\x64" "$(SolutionDir)$(Platform)\$(Configuration)" *.dll /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
     <PreBuildEvent>
@@ -127,7 +129,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions);VK_USE_PLATFORM_WIN32_KHR</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);C:\VulkanSDK\1.3.296.0\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);C:\VulkanSDK\1.3.296.0\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -135,13 +137,15 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;%(AdditionalLibraryDirectories);C:\VulkanSDK\1.3.296.0\Lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;%(AdditionalLibraryDirectories);C:\VulkanSDK\1.3.296.0\Lib;$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
 robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+robocopy "$(SolutionDir)3rdParty\assimp-5.4.3\bin\x64" "$(SolutionDir)$(Platform)\$(Configuration)" *.dll /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
     <PreBuildEvent>
@@ -167,7 +171,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_DX12;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -177,11 +181,13 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+robocopy "$(SolutionDir)3rdParty\assimp-5.4.3\bin\x64" "$(SolutionDir)$(Platform)\$(Configuration)" *.dll /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
     <PreBuildEvent>
@@ -203,7 +209,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions);VK_USE_PLATFORM_WIN32_KHR</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);C:\VulkanSDK\1.3.296.0\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);C:\VulkanSDK\1.3.296.0\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -213,11 +219,13 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);C:\VulkanSDK\1.3.296.0\Lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);C:\VulkanSDK\1.3.296.0\Lib;$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
+IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)
+robocopy "$(SolutionDir)3rdParty\assimp-5.4.3\bin\x64" "$(SolutionDir)$(Platform)\$(Configuration)" *.dll /E /XJD /XJF /R:0 /W:0
 IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     </PostBuildEvent>
     <PreBuildEvent>

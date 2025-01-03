@@ -19,7 +19,7 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestTriangles();
+	void DrawTestModel();
 
 private:
 	bool m_IsInitialized;
@@ -131,35 +131,10 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestTriangles();
+	void DrawTestModel();
 
 private:
 	bool m_IsInitialized;
-
-	static inline const std::vector<Vertex> sk_TestTrianglesVertices
-	{
-		{ { -0.5f, -0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-		{ {  0.5f, -0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-		{ {  0.5f,  0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-		{ { -0.5f,  0.5f,  0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
-		
-		{ { -0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-		{ {  0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-		{ {  0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-		{ { -0.5f,  0.5f, -0.5f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } }
-	};
-
-	static inline const std::vector<uint32_t> sk_TestTrianglesIndices
-	{
-		0, 1, 2,
-		2, 3, 0,
-		4, 5, 6,
-		6, 7, 4,
-		0, 3, 2,
-		2, 1, 0,
-		4, 7, 6,
-		6, 5, 4
-	};
 
 #if defined(_DEBUG)
 	std::vector<const char*> m_ValidationLayers
@@ -201,7 +176,7 @@ private:
 	std::vector<VkImageView> m_VkSwapChainImageViews;
 	VkRenderPass m_VkRenderPass;
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
-	VkPipelineLayout m_VkPipelineLayout;
+	VkPipelineLayout m_VkGraphicsPipelineLayout;
 	VkPipeline m_VkGraphicsPipeline;
 	std::vector<VkFramebuffer> m_VkFrameBuffers;
 	VkCommandPool m_VkCommandPool;
@@ -209,22 +184,22 @@ private:
 	std::vector<VkSemaphore> m_VkImageAvailableSemaphores;
 	std::vector<VkSemaphore> m_VkRenderFinishedSemaphores;
 	std::vector<VkFence> m_VkInFlightFences;
-	std::vector<Vertex> m_Vertices;
-	std::vector<uint32_t> m_Indices;
-	VkBuffer m_VkVertexBuffer;
-	VkDeviceMemory m_VkVertexBufferMemory;
-	VkBuffer m_VkIndexBuffer;
-	VkDeviceMemory m_VkIndexBufferMemory;
+	std::vector<Vertex> m_TestModelVertices;
+	std::vector<uint32_t> m_TestModelIndices;
+	VkBuffer m_VkTestModelVertexBuffer;
+	VkDeviceMemory m_VkTestModelVertexBufferMemory;
+	VkBuffer m_VkTestModelIndexBuffer;
+	VkDeviceMemory m_VkTestModelIndexBufferMemory;
 	std::vector<VkBuffer> m_VkUniformBuffers;
 	std::vector<VkDeviceMemory> m_VkUniformBuffersMemory;
 	std::vector<void*> m_VkUniformBuffersMapped;
 	VkDescriptorPool m_VkDescriptorPool;
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
 	uint32_t m_MipLevels;
-	VkImage m_VkTextureImage;
-	VkDeviceMemory m_VkTextureImageMemory;
-	VkImageView m_VkTextureImageView;
-	VkSampler m_VkTextureSampler;
+	VkImage m_VkTestModelTextureImage;
+	VkDeviceMemory m_VkTestModelTextureImageMemory;
+	VkImageView m_VkTestModelTextureImageView;
+	VkSampler m_VkTestModelTextureSampler;
 	VkImage m_VkDepthImage;
 	VkDeviceMemory m_VkDepthImageMemory;
 	VkImageView m_VkDepthImageView;

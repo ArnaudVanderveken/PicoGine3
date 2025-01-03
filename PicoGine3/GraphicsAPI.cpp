@@ -22,7 +22,7 @@ bool GraphicsAPI::IsInitialized() const
 	return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestTriangles()
+void GraphicsAPI::DrawTestModel()
 {
 	
 }
@@ -44,8 +44,7 @@ void GraphicsAPI::DrawTestTriangles()
 #include <assimp/postprocess.h> //TEMPORARY
 
 GraphicsAPI::GraphicsAPI() :
-	m_IsInitialized{ false },
-	m_VkPhysicalDeviceProperties{}
+	m_IsInitialized{ false }
 {
 	CreateVkInstance();
 	CreateSurface();
@@ -94,10 +93,10 @@ GraphicsAPI::~GraphicsAPI()
 
 	CleanupSwapchain();
 
-	vkDestroySampler(m_VkDevice, m_VkTextureSampler, nullptr);
-	vkDestroyImageView(m_VkDevice, m_VkTextureImageView, nullptr);
-	vkDestroyImage(m_VkDevice, m_VkTextureImage, nullptr);
-	vkFreeMemory(m_VkDevice, m_VkTextureImageMemory, nullptr);
+	vkDestroySampler(m_VkDevice, m_VkTestModelTextureSampler, nullptr);
+	vkDestroyImageView(m_VkDevice, m_VkTestModelTextureImageView, nullptr);
+	vkDestroyImage(m_VkDevice, m_VkTestModelTextureImage, nullptr);
+	vkFreeMemory(m_VkDevice, m_VkTestModelTextureImageMemory, nullptr);
 
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
@@ -109,14 +108,14 @@ GraphicsAPI::~GraphicsAPI()
 
 	vkDestroyDescriptorSetLayout(m_VkDevice, m_VkDescriptorSetLayout, nullptr);
 
-	vkDestroyBuffer(m_VkDevice, m_VkIndexBuffer, nullptr);
-	vkFreeMemory(m_VkDevice, m_VkIndexBufferMemory, nullptr);
+	vkDestroyBuffer(m_VkDevice, m_VkTestModelIndexBuffer, nullptr);
+	vkFreeMemory(m_VkDevice, m_VkTestModelIndexBufferMemory, nullptr);
 
-	vkDestroyBuffer(m_VkDevice, m_VkVertexBuffer, nullptr);
-	vkFreeMemory(m_VkDevice, m_VkVertexBufferMemory, nullptr);
+	vkDestroyBuffer(m_VkDevice, m_VkTestModelVertexBuffer, nullptr);
+	vkFreeMemory(m_VkDevice, m_VkTestModelVertexBufferMemory, nullptr);
 	
 	vkDestroyPipeline(m_VkDevice, m_VkGraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_VkDevice, m_VkPipelineLayout, nullptr);
+	vkDestroyPipelineLayout(m_VkDevice, m_VkGraphicsPipelineLayout, nullptr);
 	vkDestroyRenderPass(m_VkDevice, m_VkRenderPass, nullptr);
 
 	vkDestroyDevice(m_VkDevice, nullptr);
@@ -132,7 +131,7 @@ bool GraphicsAPI::IsInitialized() const
 	return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestTriangles()
+void GraphicsAPI::DrawTestModel()
 {
 	vkWaitForFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
@@ -149,11 +148,9 @@ void GraphicsAPI::DrawTestTriangles()
 		HandleVkResult(vkResult);
 
 	vkResetFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame]);
-
 	vkResetCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], 0);
 
 	UpdateUniformBuffer(m_CurrentFrame);
-
 	RecordTestTrianglesCmdBuffer(m_VkCommandBuffers[m_CurrentFrame], imageIndex);
 
 	const VkSemaphore waitSemaphores[]
@@ -440,8 +437,7 @@ void GraphicsAPI::CreateVkInstance()
 
 	for (const char* layerName : m_ValidationLayers)
 	{
-		bool layerFound = false;
-
+		bool layerFound{};
 		for (const auto& layerProperties : availableLayers)
 		{
 			if (strcmp(layerName, layerProperties.layerName) == 0)
@@ -465,7 +461,7 @@ void GraphicsAPI::CreateVkInstance()
 
 	for (const auto& requiredExtension : m_RequiredInstanceExtensions)
 	{
-		bool extensionFound = false;
+		bool extensionFound{};
 		for (const auto& extension : extensions)
 		{
 			if (strcmp(extension.extensionName, requiredExtension) == 0)
@@ -590,13 +586,13 @@ QueueFamilyIndices GraphicsAPI::FindQueueFamilies(VkPhysicalDevice device) const
 {
 	QueueFamilyIndices indices;
 
-	uint32_t queueFamilyCount = 0;
+	uint32_t queueFamilyCount{};
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
 
 	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-	int i{};
+	uint32_t i{};
 	for (const auto& queueFamily : queueFamilies)
 	{
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
@@ -621,7 +617,7 @@ void GraphicsAPI::CreateLogicalDevice()
 	m_QueueFamilyIndices = FindQueueFamilies(m_VkPhysicalDevice);
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-	const std::set<uint32_t> uniqueQueueFamilies = { m_QueueFamilyIndices.m_GraphicsFamily.value(), m_QueueFamilyIndices.m_PresentFamily.value() };
+	const std::set<uint32_t> uniqueQueueFamilies{ m_QueueFamilyIndices.m_GraphicsFamily.value(), m_QueueFamilyIndices.m_PresentFamily.value() };
 
 	constexpr float queuePriority{ 1.0f };
 	for (const auto queueFamily : uniqueQueueFamilies)
@@ -666,7 +662,7 @@ bool GraphicsAPI::CheckDeviceExtensionsSupport(VkPhysicalDevice device) const
 	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
 	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
 
-	std::set<std::string> requiredExtensions(m_DeviceExtensions.begin(), m_DeviceExtensions.end());
+	std::set<std::string> requiredExtensions{ m_DeviceExtensions.begin(), m_DeviceExtensions.end() };
 
 	for (const auto& extension : availableExtensions)
 		requiredExtensions.erase(extension.extensionName);
@@ -677,7 +673,6 @@ bool GraphicsAPI::CheckDeviceExtensionsSupport(VkPhysicalDevice device) const
 SwapChainSupportDetails GraphicsAPI::QuerySwapChainSupport(VkPhysicalDevice device) const
 {
 	SwapChainSupportDetails details;
-
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_VkSurface, &details.m_Capabilities);
 
 	uint32_t formatCount;
@@ -692,7 +687,8 @@ SwapChainSupportDetails GraphicsAPI::QuerySwapChainSupport(VkPhysicalDevice devi
 	uint32_t presentModeCount;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_VkSurface, &presentModeCount, nullptr);
 
-	if (presentModeCount != 0) {
+	if (presentModeCount != 0)
+	{
 		details.m_PresentModes.resize(presentModeCount);
 		vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_VkSurface, &presentModeCount, details.m_PresentModes.data());
 	}
@@ -740,13 +736,13 @@ VkExtent2D GraphicsAPI::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabil
 
 void GraphicsAPI::CreateSwapchain()
 {
-	const SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(m_VkPhysicalDevice);
+	const SwapChainSupportDetails swapChainSupport{ QuerySwapChainSupport(m_VkPhysicalDevice) };
 
-	const VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.m_Formats);
-	const VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.m_PresentModes);
-	const VkExtent2D extent = ChooseSwapExtent(swapChainSupport.m_Capabilities);
+	const VkSurfaceFormatKHR surfaceFormat{ ChooseSwapSurfaceFormat(swapChainSupport.m_Formats) };
+	const VkPresentModeKHR presentMode{ ChooseSwapPresentMode(swapChainSupport.m_PresentModes) };
+	const VkExtent2D extent{ ChooseSwapExtent(swapChainSupport.m_Capabilities) };
 
-	uint32_t imageCount = swapChainSupport.m_Capabilities.minImageCount + 1;
+	uint32_t imageCount{ swapChainSupport.m_Capabilities.minImageCount + 1 };
 
 	if (swapChainSupport.m_Capabilities.maxImageCount > 0 && imageCount > swapChainSupport.m_Capabilities.maxImageCount)
 		imageCount = swapChainSupport.m_Capabilities.maxImageCount;
@@ -762,7 +758,11 @@ void GraphicsAPI::CreateSwapchain()
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	const uint32_t queueFamilyIndices[] = { m_QueueFamilyIndices.m_GraphicsFamily.value(), m_QueueFamilyIndices.m_PresentFamily.value() };
+	const uint32_t queueFamilyIndices[]
+	{
+		m_QueueFamilyIndices.m_GraphicsFamily.value(),
+		m_QueueFamilyIndices.m_PresentFamily.value()
+	};
 
 	if (m_QueueFamilyIndices.m_GraphicsFamily != m_QueueFamilyIndices.m_PresentFamily)
 	{
@@ -891,11 +891,11 @@ VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) co
 
 void GraphicsAPI::CreateGraphicsPipeline()
 {
-	const auto vertShaderCode = ReadShaderFile(L"Shaders/TestTrianglesTextured_VS.spv");
-	const auto fragShaderCode = ReadShaderFile(L"Shaders/TestTrianglesTextured_PS.spv");
+	const auto vertShaderCode{ ReadShaderFile(L"Shaders/TestTrianglesTextured_VS.spv") };
+	const auto fragShaderCode{ ReadShaderFile(L"Shaders/TestTrianglesTextured_PS.spv") };
 
-	const VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode);
-	const VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode);
+	const VkShaderModule vertShaderModule{ CreateShaderModule(vertShaderCode) };
+	const VkShaderModule fragShaderModule{ CreateShaderModule(fragShaderCode) };
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1008,7 +1008,7 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-	HandleVkResult(vkCreatePipelineLayout(m_VkDevice, &pipelineLayoutInfo, nullptr, &m_VkPipelineLayout));
+	HandleVkResult(vkCreatePipelineLayout(m_VkDevice, &pipelineLayoutInfo, nullptr, &m_VkGraphicsPipelineLayout));
 
 	VkPipelineDepthStencilStateCreateInfo depthStencil{};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -1034,7 +1034,7 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = m_VkPipelineLayout;
+	pipelineInfo.layout = m_VkGraphicsPipelineLayout;
 	pipelineInfo.renderPass = m_VkRenderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
@@ -1135,7 +1135,7 @@ void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, ui
 
 	const VkBuffer vertexBuffers[]
 	{
-		m_VkVertexBuffer
+		m_VkTestModelVertexBuffer
 	};
 
 	constexpr VkDeviceSize offsets[]
@@ -1144,10 +1144,10 @@ void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, ui
 	};
 
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, m_VkIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
+	vkCmdBindIndexBuffer(commandBuffer, m_VkTestModelIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
 
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_Indices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_TestModelIndices.size()), 1, 0, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 	HandleVkResult(vkEndCommandBuffer(commandBuffer));
 }
@@ -1202,7 +1202,7 @@ void GraphicsAPI::RecreateSwapchain()
 
 void GraphicsAPI::CreateVertexBuffer()
 {
-	const VkDeviceSize bufferSize{ sizeof(Vertex) * m_Vertices.size() };
+	const VkDeviceSize bufferSize{ sizeof(Vertex) * m_TestModelVertices.size() };
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1210,12 +1210,12 @@ void GraphicsAPI::CreateVertexBuffer()
 
 	void* data;
 	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, m_Vertices.data(), bufferSize);
+	memcpy(data, m_TestModelVertices.data(), bufferSize);
 	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
 
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkVertexBuffer, m_VkVertexBufferMemory);
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelVertexBuffer, m_VkTestModelVertexBufferMemory);
 
-	CopyBuffer(stagingBuffer, m_VkVertexBuffer, bufferSize);
+	CopyBuffer(stagingBuffer, m_VkTestModelVertexBuffer, bufferSize);
 
 	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
 	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
@@ -1223,7 +1223,7 @@ void GraphicsAPI::CreateVertexBuffer()
 
 void GraphicsAPI::CreateIndexBuffer()
 {
-	const VkDeviceSize bufferSize{ sizeof(uint32_t) * m_Indices.size() };
+	const VkDeviceSize bufferSize{ sizeof(uint32_t) * m_TestModelIndices.size() };
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1231,12 +1231,12 @@ void GraphicsAPI::CreateIndexBuffer()
 
 	void* data;
 	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, m_Indices.data(), bufferSize);
+	memcpy(data, m_TestModelIndices.data(), bufferSize);
 	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
 
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkIndexBuffer, m_VkIndexBufferMemory);
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelIndexBuffer, m_VkTestModelIndexBufferMemory);
 
-	CopyBuffer(stagingBuffer, m_VkIndexBuffer, bufferSize);
+	CopyBuffer(stagingBuffer, m_VkTestModelIndexBuffer, bufferSize);
 
 	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
 	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
@@ -1357,8 +1357,8 @@ void GraphicsAPI::CreateDescriptorSets()
 
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = m_VkTextureImageView;
-		imageInfo.sampler = m_VkTextureSampler;
+		imageInfo.imageView = m_VkTestModelTextureImageView;
+		imageInfo.sampler = m_VkTestModelTextureSampler;
 
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
@@ -1404,11 +1404,11 @@ void GraphicsAPI::CreateTextureImage()
 
 	stbi_image_free(pixels);
 
-	CreateImage(texWidth, texHeight, m_MipLevels, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTextureImage, m_VkTextureImageMemory);
+	CreateImage(texWidth, texHeight, m_MipLevels, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelTextureImage, m_VkTestModelTextureImageMemory);
 
-	TransitionImageLayout(m_VkTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_MipLevels);
-	CopyBufferToImage(stagingBuffer, m_VkTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	GenerateMipmaps(m_VkTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_MipLevels);
+	TransitionImageLayout(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_MipLevels);
+	CopyBufferToImage(stagingBuffer, m_VkTestModelTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	GenerateMipmaps(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_MipLevels);
 
 	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
 	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
@@ -1416,7 +1416,7 @@ void GraphicsAPI::CreateTextureImage()
 
 void GraphicsAPI::CreateTextureImageView()
 {
-	m_VkTextureImageView = CreateImageView(m_VkTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_MipLevels);
+	m_VkTestModelTextureImageView = CreateImageView(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_MipLevels);
 }
 
 void GraphicsAPI::CreateTextureSampler()
@@ -1439,7 +1439,7 @@ void GraphicsAPI::CreateTextureSampler()
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = static_cast<float>(m_MipLevels);
 
-	HandleVkResult(vkCreateSampler(m_VkDevice, &samplerInfo, nullptr, &m_VkTextureSampler));
+	HandleVkResult(vkCreateSampler(m_VkDevice, &samplerInfo, nullptr, &m_VkTestModelTextureSampler));
 }
 
 void GraphicsAPI::CreateDepthResources()
@@ -1487,7 +1487,7 @@ void GraphicsAPI::LoadTestModel()
 		Logger::Get().LogError(L"Error::Assimp: " + StrUtils::cstr2stdwstr(importer.GetErrorString()) + L"\n");
 
 	const aiMesh* mesh{ scene->mMeshes[0] };
-	m_Indices.reserve(mesh->mNumVertices); // Can't reserve for m_Vertices since size is unknown
+	m_TestModelIndices.reserve(mesh->mNumVertices); // Can't reserve for m_TestModelVertices since size is unknown
 	std::unordered_map<Vertex, uint32_t> uniqueVertices;
 
 	for (uint32_t i{}; i < mesh->mNumVertices; ++i)
@@ -1509,11 +1509,11 @@ void GraphicsAPI::LoadTestModel()
 		if (!uniqueVertices.contains(vertex))
 		{
 			// Add new vertex
-			uniqueVertices[vertex] = static_cast<uint32_t>(m_Vertices.size());
-			m_Vertices.emplace_back(vertex);
+			uniqueVertices[vertex] = static_cast<uint32_t>(m_TestModelVertices.size());
+			m_TestModelVertices.emplace_back(vertex);
 		}
 
-		m_Indices.emplace_back(uniqueVertices[vertex]);
+		m_TestModelIndices.emplace_back(uniqueVertices[vertex]);
 	}
 }
 
@@ -1626,7 +1626,6 @@ void GraphicsAPI::DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtil
 {
 	if (const auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT")); func != nullptr)
 		func(instance, debugMessenger, pAllocator);
-	
 }
 
 void GraphicsAPI::SetupDebugMessenger()

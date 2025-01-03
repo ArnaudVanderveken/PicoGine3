@@ -16,7 +16,7 @@ bool Renderer::IsInitialized() const
 void Renderer::DrawFrame() const
 {
 	if (m_pGraphicsAPI->IsInitialized())
-		m_pGraphicsAPI->DrawTestTriangles();
+		m_pGraphicsAPI->DrawTestModel();
 	else
 		Logger::Get().LogWarning(L"GraphicsAPI is uninitialized. Ignoring call");
 }

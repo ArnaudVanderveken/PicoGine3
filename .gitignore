@@ -397,10 +397,10 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-#Project Specific
+# Project specific
 PicoGine3/PicoGine3_Log.txt
 
-#exceptions
-!3rdParty/*
-!Shaders/*
-!Resources/*
+# Exceptions
+!3rdParty/**
+!Resources/**
+!Shaders/**

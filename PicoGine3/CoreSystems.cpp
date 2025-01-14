@@ -7,10 +7,14 @@
 #include "WindowManager.h"
 
 
-CoreSystems::CoreSystems() :
-	m_AppHinstance{ GetModuleHandle(nullptr) },
-	m_AppMinimized{}
+void CoreSystems::Initialize()
 {
+	m_AppHinstance = GetModuleHandle(nullptr);
+
+	Settings::Get().Initialize();
+	WindowManager::Get().Initialize();
+	InputManager::Get().Initialize();
+	Renderer::Get().Initialize();
 }
 
 bool CoreSystems::IsInitialized()

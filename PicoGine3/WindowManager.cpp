@@ -6,15 +6,18 @@
 #include "Settings.h"
 
 
-WindowManager::WindowManager():
-	m_IsInitialized{ false },
-	m_FullscreenState{ WindowFullscreenState::None },
-	m_pWindowClassName{ L"PicoGine3WindowClassName" },
-	m_WindowHandle{},
-	m_WindowRect{}
+WindowManager::~WindowManager()
+{
+	DestroyWindow(m_WindowHandle);
+	UnregisterClass(m_pWindowClassName, CoreSystems::Get().GetAppHinstance());
+}
+
+void WindowManager::Initialize()
 {
 	const auto& core = CoreSystems::Get();
 	const auto& settings = Settings::Get();
+
+	m_FullscreenState = WindowFullscreenState::None;
 
 	//Create Window Class
 	WNDCLASS windowClass;
@@ -53,7 +56,7 @@ WindowManager::WindowManager():
 
 	// Center window
 	// Query the name of the nearest display device for the window.
-	const HMONITOR hMonitor { ::MonitorFromWindow(m_WindowHandle, MONITOR_DEFAULTTONEAREST) };
+	const HMONITOR hMonitor{ ::MonitorFromWindow(m_WindowHandle, MONITOR_DEFAULTTONEAREST) };
 	MONITORINFOEX monitorInfo{};
 	monitorInfo.cbSize = sizeof(MONITORINFOEX);
 	HandleNonHrWin32(::GetMonitorInfo(hMonitor, &monitorInfo));
@@ -66,13 +69,9 @@ WindowManager::WindowManager():
 	//Show The Window
 	HandleNonHrWin32(::ShowWindow(m_WindowHandle, SW_SHOWDEFAULT));
 
-	m_IsInitialized = true;
-}
+	SetFullscreenState(settings.GetWindowFullscreenStartState());
 
-WindowManager::~WindowManager()
-{
-	DestroyWindow(m_WindowHandle);
-	UnregisterClass(m_pWindowClassName, CoreSystems::Get().GetAppHinstance());
+	m_IsInitialized = true;
 }
 
 bool WindowManager::IsInitialized() const

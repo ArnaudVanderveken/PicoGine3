@@ -1,12 +1,10 @@
 #include "pch.h"
 #include "Settings.h"
 
-Settings::Settings() :
-	m_IsInitialized{ true },
-	m_DesiredResolution{ 1920, 1080 },
-	m_VSync{ false },
-	m_WindowFullscreenStartState{ WindowFullscreenState::None }
+
+void Settings::Initialize()
 {
+	m_IsInitialized = true;
 }
 
 bool Settings::IsInitialized() const

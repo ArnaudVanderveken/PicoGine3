@@ -5,8 +5,7 @@
 class CoreSystems final : public Singleton<CoreSystems>
 {
 	friend class Singleton<CoreSystems>;
-
-	explicit CoreSystems();
+	explicit CoreSystems() = default;
 
 public:
 	~CoreSystems() override = default;
@@ -15,6 +14,7 @@ public:
 	CoreSystems(CoreSystems&&) noexcept = delete;
 	CoreSystems& operator=(CoreSystems&&) noexcept = delete;
 
+	void Initialize();
 	[[nodiscard]] static bool IsInitialized();
 
 	[[nodiscard]] HINSTANCE GetAppHinstance() const;
@@ -23,9 +23,8 @@ public:
 	void SetAppMinimized(bool value);
 
 private:
-	HINSTANCE m_AppHinstance;
-
-	bool m_AppMinimized;
+	HINSTANCE m_AppHinstance{};
+	bool m_AppMinimized{};
 };
 
 #endif //CORESYSTEMS_H

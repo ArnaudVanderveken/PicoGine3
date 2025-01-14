@@ -1,10 +1,10 @@
 #include "pch.h"
 #include "Renderer.h"
 
-Renderer::Renderer() :
-	m_IsInitialized{ false },
-	m_pGraphicsAPI{ std::make_unique<GraphicsAPI>() }
+
+void Renderer::Initialize()
 {
+	m_pGraphicsAPI = std::make_unique<GraphicsAPI>();
 	m_IsInitialized = true;
 }
 

@@ -6,17 +6,8 @@
 #include "Settings.h"
 #include "WindowManager.h"
 
-InputManager::InputManager() :
-	m_IsInitialized{ false },
-	m_MousePosition{},
-	m_MouseDelta{},
-	m_CurrentKeys{},
-	m_FrameKeyDown{},
-	m_FrameKeyUp{},
-	m_ControllerConnected{ false },
-	m_ControllerState{},
-	m_ControllerButtonsDown{},
-	m_ControllerButtonsUp{}
+
+void InputManager::Initialize()
 {
 	const auto& hwnd = WindowManager::Get().GetHWnd();
 

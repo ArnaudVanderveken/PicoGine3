@@ -6,7 +6,7 @@
 class Settings final : public Singleton<Settings>
 {
 	friend class Singleton<Settings>;
-	explicit Settings();
+	explicit Settings() = default;
 
 public:
 	~Settings() override = default;
@@ -16,6 +16,7 @@ public:
 	Settings(Settings&&) noexcept = delete;
 	Settings& operator=(Settings&&) noexcept = delete;
 
+	void Initialize();
 	[[nodiscard]] bool IsInitialized() const;
 
 	[[nodiscard]] const wchar_t* GetWindowName() const;
@@ -26,7 +27,7 @@ public:
 	void SetVSync(bool value);
 
 private:
-	bool m_IsInitialized;
+	bool m_IsInitialized{};
 
 #if defined(_DX12) && defined(_DEBUG)
 	const wchar_t* m_WindowName{ L"PicoGine3 - DEBUG - DX12" };
@@ -40,9 +41,9 @@ private:
 	const wchar_t* m_WindowName{ L"ERROR - INVALID API" };
 #endif
 
-	XMINT2 m_DesiredResolution;
-	bool m_VSync;
-	WindowFullscreenState m_WindowFullscreenStartState;
+	XMINT2 m_DesiredResolution{ 1920, 1080 };
+	bool m_VSync{ false }; // Currently unused
+	WindowFullscreenState m_WindowFullscreenStartState{ WindowFullscreenState::None };
 
 };
 

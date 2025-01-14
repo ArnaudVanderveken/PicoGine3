@@ -6,7 +6,7 @@
 class InputManager final : public Singleton<InputManager>
 {
 	friend class Singleton<InputManager>;
-	explicit InputManager();
+	explicit InputManager() = default;
 
 public:
 	~InputManager() override = default;
@@ -16,6 +16,7 @@ public:
 	InputManager(InputManager&&) noexcept = delete;
 	InputManager& operator=(InputManager&&) noexcept = delete;
 
+	void Initialize();
 	[[nodiscard]] bool IsInitialized() const;
 
 	void UpdateAndExec();
@@ -42,21 +43,21 @@ public:
 	[[nodiscard]] const XMINT2& GetMouseDelta() const;
 
 private:
-	bool m_IsInitialized;
+	bool m_IsInitialized{};
 
-	std::array<RAWINPUTDEVICE, 2> m_RawDevices;
+	std::array<RAWINPUTDEVICE, 2> m_RawDevices{};
 
-	XMINT2 m_MousePosition;
-	XMINT2 m_MouseDelta;
+	XMINT2 m_MousePosition{};
+	XMINT2 m_MouseDelta{};
 
-	std::array<bool, 256> m_CurrentKeys;
-	std::array<bool, 256> m_FrameKeyDown;
-	std::array<bool, 256> m_FrameKeyUp;
+	std::array<bool, 256> m_CurrentKeys{};
+	std::array<bool, 256> m_FrameKeyDown{};
+	std::array<bool, 256> m_FrameKeyUp{};
 
-	bool m_ControllerConnected;
-	XINPUT_STATE m_ControllerState;
-	std::array<bool, GP_COUNT> m_ControllerButtonsDown;
-	std::array<bool, GP_COUNT> m_ControllerButtonsUp;
+	bool m_ControllerConnected{};
+	XINPUT_STATE m_ControllerState{};
+	std::array<bool, GP_COUNT> m_ControllerButtonsDown{};
+	std::array<bool, GP_COUNT> m_ControllerButtonsUp{};
 
 	void UpdateControllerState();
 };

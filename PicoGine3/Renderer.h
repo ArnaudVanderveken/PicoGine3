@@ -9,8 +9,9 @@
 class Renderer final : public Singleton<Renderer>
 {
 	friend class Singleton<Renderer>;
+	explicit Renderer() = default;
+
 public:
-	explicit Renderer();
 	~Renderer() override = default;
 
 	Renderer(const Renderer&) noexcept = delete;
@@ -18,12 +19,13 @@ public:
 	Renderer(Renderer&&) noexcept = delete;
 	Renderer& operator=(Renderer&&) noexcept = delete;
 
+	void Initialize();
 	[[nodiscard]] bool IsInitialized() const;
 
 	void DrawFrame() const;
 
 private:
-	bool m_IsInitialized;
+	bool m_IsInitialized{};
 
 	std::unique_ptr<GraphicsAPI> m_pGraphicsAPI;
 

@@ -16,7 +16,9 @@ int APIENTRY wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, LPWS
 	// while still allowing non-client window content to be rendered in a DPI sensitive fashion.
 	::SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-	const auto& core = CoreSystems::Get();
+	auto& core = CoreSystems::Get();
+
+	core.Initialize();
 
 	if (!core.IsInitialized())
 		return 1;

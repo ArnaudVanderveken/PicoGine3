@@ -28,13 +28,13 @@ public:
 private:
 	bool m_IsInitialized{};
 
-	WindowFullscreenState m_FullscreenState;
+	WindowFullscreenState m_FullscreenState{ WindowFullscreenState::None };
 
 	const wchar_t* m_pWindowClassName{ L"PicoGine3WindowClassName" };
-	HWND m_WindowHandle;
-	RECT m_WindowRect;
-	int m_ActualWindowWidth;
-	int m_ActualWindowHeight;
+	HWND m_WindowHandle{};
+	RECT m_WindowRect{};
+	int m_ActualWindowWidth{};
+	int m_ActualWindowHeight{};
 
 	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 };

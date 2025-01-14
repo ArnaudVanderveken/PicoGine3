@@ -17,8 +17,6 @@ void WindowManager::Initialize()
 	const auto& core = CoreSystems::Get();
 	const auto& settings = Settings::Get();
 
-	m_FullscreenState = WindowFullscreenState::None;
-
 	//Create Window Class
 	WNDCLASS windowClass;
 	ZeroMemory(&windowClass, sizeof(WNDCLASS));

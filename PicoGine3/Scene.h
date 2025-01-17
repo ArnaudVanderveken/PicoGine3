@@ -20,11 +20,20 @@ public:
 	Scene& operator=(Scene&&) noexcept = delete;
 
 	void Initialize();
-	void RunSystems() const;
+	void Start() const;
+	void Update() const;
+	void LateUpdate() const;
+	void FixedUpdate() const;
+	void Render() const;
 
 private:
 	flecs::world m_Ecs{};
 
+	std::vector<flecs::system> m_StartSystems{};
+	std::vector<flecs::system> m_UpdateSystems{};
+	std::vector<flecs::system> m_LateUpdateSystems{};
+	std::vector<flecs::system> m_FixedUpdateSystems{};
+	std::vector<flecs::system> m_RenderSystems{};
 };
 
 #endif //SCENE_H

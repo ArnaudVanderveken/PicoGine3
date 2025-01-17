@@ -5,11 +5,36 @@
 
 void Scene::Initialize()
 {
-	m_Ecs.system<>().kind(flecs::OnUpdate).each(Systems::Test);
+	m_Ecs.system<>().each(Systems::Test);
+
 }
 
-void Scene::RunSystems() const
+void Scene::Start() const
 {
-	if (!m_Ecs.progress())
-		Logger::Get().LogError(L"ECS failed to run");
+	for (const auto& system : m_StartSystems)
+		system.run();
+}
+
+void Scene::Update() const
+{
+	for (const auto& system : m_UpdateSystems)
+		system.run();
+}
+
+void Scene::LateUpdate() const
+{
+	for (const auto& system : m_LateUpdateSystems)
+		system.run();
+}
+
+void Scene::FixedUpdate() const
+{
+	for (const auto& system : m_FixedUpdateSystems)
+		system.run();
+}
+
+void Scene::Render() const
+{
+	for (const auto& system : m_RenderSystems)
+		system.run();
 }

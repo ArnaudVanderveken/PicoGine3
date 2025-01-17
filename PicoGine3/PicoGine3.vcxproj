@@ -276,7 +276,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CleanedWindows.h" />
-    <ClInclude Include="Components.h" />
+    <ClInclude Include="Components.hpp" />
     <ClInclude Include="CoreSystems.h" />
     <ClInclude Include="flecs.h" />
     <ClInclude Include="GraphicsAPI.h" />

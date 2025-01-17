@@ -101,10 +101,10 @@
     <ClInclude Include="flecs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Components.h">
+    <ClInclude Include="Systems.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Systems.hpp">
+    <ClInclude Include="Components.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

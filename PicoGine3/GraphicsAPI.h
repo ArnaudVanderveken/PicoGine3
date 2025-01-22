@@ -19,7 +19,9 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestModel();
+	void BeginFrame();
+	void EndFrame();
+	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform) const;
 
 private:
 	bool m_IsInitialized;
@@ -131,7 +133,13 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 
-	void DrawTestModel();
+	void CreateVertexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const;
+	void CreateIndexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const;
+
+	void BeginFrame();
+	void EndFrame();
+	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform) const;
+	//void DrawTestModel();
 
 private:
 	bool m_IsInitialized;
@@ -161,6 +169,7 @@ private:
 
 	static constexpr uint32_t sk_MaxFramesInFlight{ 2 };
 	uint32_t m_CurrentFrame{};
+	uint32_t m_CurrentFrameSwapchainImageIndex{};
 
 	VkInstance m_VkInstance;
 	VkSurfaceKHR m_VkSurface;
@@ -184,12 +193,12 @@ private:
 	std::vector<VkSemaphore> m_VkImageAvailableSemaphores;
 	std::vector<VkSemaphore> m_VkRenderFinishedSemaphores;
 	std::vector<VkFence> m_VkInFlightFences;
-	std::vector<Vertex> m_TestModelVertices;
-	std::vector<uint32_t> m_TestModelIndices;
-	VkBuffer m_VkTestModelVertexBuffer;
-	VkDeviceMemory m_VkTestModelVertexBufferMemory;
-	VkBuffer m_VkTestModelIndexBuffer;
-	VkDeviceMemory m_VkTestModelIndexBufferMemory;
+	//std::vector<Vertex> m_TestModelVertices;
+	//std::vector<uint32_t> m_TestModelIndices;
+	//VkBuffer m_VkTestModelVertexBuffer;
+	//VkDeviceMemory m_VkTestModelVertexBufferMemory;
+	//VkBuffer m_VkTestModelIndexBuffer;
+	//VkDeviceMemory m_VkTestModelIndexBufferMemory;
 	std::vector<VkBuffer> m_VkUniformBuffers;
 	std::vector<VkDeviceMemory> m_VkUniformBuffersMemory;
 	std::vector<void*> m_VkUniformBuffersMapped;
@@ -234,12 +243,10 @@ private:
 	void CreateFrameBuffers();
 	void CreateCommandPool();
 	void CreateCommandBuffer();
-	void RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
+	//void RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
 	void CreateSyncObjects();
 	void CleanupSwapchain() const;
 	void RecreateSwapchain();
-	void CreateVertexBuffer();
-	void CreateIndexBuffer();
 	[[nodiscard]] uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 	void CreateDescriptorSetLayout();
 	void CreateUniformBuffers();
@@ -253,7 +260,7 @@ private:
 	[[nodiscard]] VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
 	[[nodiscard]] VkFormat FindDepthFormat() const;
 	static bool HasStencilComponent(VkFormat format);
-	void LoadTestModel();
+	//void LoadTestModel();
 	void GenerateMipmaps(VkImage image, VkFormat format, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) const;
 
 #if defined(_DEBUG)

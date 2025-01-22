@@ -38,6 +38,5 @@ using namespace DirectX;
 #include "Logger.h"
 
 #include "Helpers.h"
-#include "Singleton.h"
 
 #endif //PCH_H

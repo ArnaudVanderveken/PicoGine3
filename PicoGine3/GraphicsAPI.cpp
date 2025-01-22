@@ -2,6 +2,7 @@
 #include "GraphicsAPI.h"
 
 #include "CoreSystems.h"
+#include "ResourceManager.h"
 #include "WindowManager.h"
 
 
@@ -39,9 +40,6 @@ void GraphicsAPI::DrawTestModel()
 #include <stb_image.h> //TEMPORARY
 #pragma warning(pop)
 
-#include <assimp/Importer.hpp> //TEMPORARY
-#include <assimp/scene.h> //TEMPORARY
-#include <assimp/postprocess.h> //TEMPORARY
 
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false }
@@ -66,9 +64,9 @@ GraphicsAPI::GraphicsAPI() :
 	CreateTextureImage();
 	CreateTextureImageView();
 	CreateTextureSampler();
-	LoadTestModel();
-	CreateVertexBuffer();
-	CreateIndexBuffer();
+	//LoadTestModel();
+	//CreateVertexBuffer();
+	//CreateIndexBuffer();
 	CreateUniformBuffers();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
@@ -108,11 +106,11 @@ GraphicsAPI::~GraphicsAPI()
 
 	vkDestroyDescriptorSetLayout(m_VkDevice, m_VkDescriptorSetLayout, nullptr);
 
-	vkDestroyBuffer(m_VkDevice, m_VkTestModelIndexBuffer, nullptr);
+	/*vkDestroyBuffer(m_VkDevice, m_VkTestModelIndexBuffer, nullptr);
 	vkFreeMemory(m_VkDevice, m_VkTestModelIndexBufferMemory, nullptr);
 
 	vkDestroyBuffer(m_VkDevice, m_VkTestModelVertexBuffer, nullptr);
-	vkFreeMemory(m_VkDevice, m_VkTestModelVertexBufferMemory, nullptr);
+	vkFreeMemory(m_VkDevice, m_VkTestModelVertexBufferMemory, nullptr);*/
 	
 	vkDestroyPipeline(m_VkDevice, m_VkGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_VkDevice, m_VkGraphicsPipelineLayout, nullptr);
@@ -131,12 +129,49 @@ bool GraphicsAPI::IsInitialized() const
 	return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestModel()
+void GraphicsAPI::CreateVertexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const
+{
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, pBufferData, bufferSize);
+	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
+
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outBuffer, outMemory);
+
+	CopyBuffer(stagingBuffer, outBuffer, bufferSize);
+
+	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
+	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
+}
+
+void GraphicsAPI::CreateIndexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const
+{
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, pBufferData, bufferSize);
+	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
+
+	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outBuffer, outMemory);
+
+	CopyBuffer(stagingBuffer, outBuffer, bufferSize);
+
+	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
+	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
+}
+
+void GraphicsAPI::BeginFrame()
 {
 	vkWaitForFences(m_VkDevice, 1, &m_VkInFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
-	uint32_t imageIndex;
-	auto vkResult{ vkAcquireNextImageKHR(m_VkDevice, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &imageIndex) };
+	const auto vkResult{ vkAcquireNextImageKHR(m_VkDevice, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &m_CurrentFrameSwapchainImageIndex) };
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR)
 	{
@@ -151,7 +186,50 @@ void GraphicsAPI::DrawTestModel()
 	vkResetCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], 0);
 
 	UpdateUniformBuffer(m_CurrentFrame);
-	RecordTestTrianglesCmdBuffer(m_VkCommandBuffers[m_CurrentFrame], imageIndex);
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = 0; // Optional
+	beginInfo.pInheritanceInfo = nullptr; // Optional
+
+	vkBeginCommandBuffer(m_VkCommandBuffers[m_CurrentFrame], &beginInfo);
+
+	std::array<VkClearValue, 2> clearValues{};
+	clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+	clearValues[1].depthStencil = { 1.0f, 0 };
+
+	VkRenderPassBeginInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = m_VkRenderPass;
+	renderPassInfo.framebuffer = m_VkFrameBuffers[m_CurrentFrameSwapchainImageIndex];
+	renderPassInfo.renderArea.offset = { 0, 0 };
+	renderPassInfo.renderArea.extent = m_VkSwapChainExtent;
+	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+	renderPassInfo.pClearValues = clearValues.data();
+
+	vkCmdBeginRenderPass(m_VkCommandBuffers[m_CurrentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(m_VkCommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipeline);
+
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(m_VkSwapChainExtent.width);
+	viewport.height = static_cast<float>(m_VkSwapChainExtent.height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(m_VkCommandBuffers[m_CurrentFrame], 0, 1, &viewport);
+
+	VkRect2D scissor{};
+	scissor.offset = { 0, 0 };
+	scissor.extent = m_VkSwapChainExtent;
+	vkCmdSetScissor(m_VkCommandBuffers[m_CurrentFrame], 0, 1, &scissor);
+}
+
+void GraphicsAPI::EndFrame()
+{
+	vkCmdEndRenderPass(m_VkCommandBuffers[m_CurrentFrame]);
+	HandleVkResult(vkEndCommandBuffer(m_VkCommandBuffers[m_CurrentFrame]));
 
 	const VkSemaphore waitSemaphores[]
 	{
@@ -191,10 +269,10 @@ void GraphicsAPI::DrawTestModel()
 	presentInfo.pWaitSemaphores = signalSemaphores;
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = swapChains;
-	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.pImageIndices = &m_CurrentFrameSwapchainImageIndex;
 	presentInfo.pResults = nullptr; // Optional
 
-	vkResult = vkQueuePresentKHR(m_VkPresentQueue, &presentInfo);
+	const auto vkResult{ vkQueuePresentKHR(m_VkPresentQueue, &presentInfo) };
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 		RecreateSwapchain();
@@ -203,6 +281,29 @@ void GraphicsAPI::DrawTestModel()
 		HandleVkResult(vkResult);
 
 	m_CurrentFrame = (m_CurrentFrame + 1) % sk_MaxFramesInFlight;
+}
+
+void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const XMMATRIX& transform) const
+{
+	const auto& resourceManager{ ResourceManager::Get() };
+
+	const auto& meshData{ resourceManager.GetMeshData(meshDataID) };
+
+	const VkBuffer vertexBuffers[]
+	{
+		meshData.m_VertexBuffer
+	};
+
+	constexpr VkDeviceSize offsets[]
+	{
+		0
+	};
+
+	vkCmdBindVertexBuffers(m_VkCommandBuffers[m_CurrentFrame], 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(m_VkCommandBuffers[m_CurrentFrame], meshData.m_IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(m_VkCommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
+
+	vkCmdDrawIndexed(m_VkCommandBuffers[m_CurrentFrame], meshData.m_IndexCount, 1, 0, 0, 0);
 }
 
 VkCommandBuffer GraphicsAPI::BeginSingleTimeCmdBuffer() const
@@ -1093,64 +1194,64 @@ void GraphicsAPI::CreateCommandBuffer()
 	HandleVkResult(vkAllocateCommandBuffers(m_VkDevice, &allocInfo, m_VkCommandBuffers.data()));
 }
 
-void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const
-{
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = 0; // Optional
-	beginInfo.pInheritanceInfo = nullptr; // Optional
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-	std::array<VkClearValue, 2> clearValues{};
-	clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-	clearValues[1].depthStencil = { 1.0f, 0 };
-
-	VkRenderPassBeginInfo renderPassInfo{};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = m_VkRenderPass;
-	renderPassInfo.framebuffer = m_VkFrameBuffers[imageIndex];
-	renderPassInfo.renderArea.offset = { 0, 0 };
-	renderPassInfo.renderArea.extent = m_VkSwapChainExtent;
-	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-	renderPassInfo.pClearValues = clearValues.data();
-
-	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipeline);
-
-	VkViewport viewport{};
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(m_VkSwapChainExtent.width);
-	viewport.height = static_cast<float>(m_VkSwapChainExtent.height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-	VkRect2D scissor{};
-	scissor.offset = { 0, 0 };
-	scissor.extent = m_VkSwapChainExtent;
-	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-	const VkBuffer vertexBuffers[]
-	{
-		m_VkTestModelVertexBuffer
-	};
-
-	constexpr VkDeviceSize offsets[]
-	{
-		0
-	};
-
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, m_VkTestModelIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
-
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_TestModelIndices.size()), 1, 0, 0, 0);
-	vkCmdEndRenderPass(commandBuffer);
-	HandleVkResult(vkEndCommandBuffer(commandBuffer));
-}
+//void GraphicsAPI::RecordTestTrianglesCmdBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const
+//{
+//	VkCommandBufferBeginInfo beginInfo{};
+//	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+//	beginInfo.flags = 0; // Optional
+//	beginInfo.pInheritanceInfo = nullptr; // Optional
+//
+//	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+//
+//	std::array<VkClearValue, 2> clearValues{};
+//	clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+//	clearValues[1].depthStencil = { 1.0f, 0 };
+//
+//	VkRenderPassBeginInfo renderPassInfo{};
+//	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+//	renderPassInfo.renderPass = m_VkRenderPass;
+//	renderPassInfo.framebuffer = m_VkFrameBuffers[imageIndex];
+//	renderPassInfo.renderArea.offset = { 0, 0 };
+//	renderPassInfo.renderArea.extent = m_VkSwapChainExtent;
+//	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+//	renderPassInfo.pClearValues = clearValues.data();
+//
+//	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+//
+//	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipeline);
+//
+//	VkViewport viewport{};
+//	viewport.x = 0.0f;
+//	viewport.y = 0.0f;
+//	viewport.width = static_cast<float>(m_VkSwapChainExtent.width);
+//	viewport.height = static_cast<float>(m_VkSwapChainExtent.height);
+//	viewport.minDepth = 0.0f;
+//	viewport.maxDepth = 1.0f;
+//	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+//
+//	VkRect2D scissor{};
+//	scissor.offset = { 0, 0 };
+//	scissor.extent = m_VkSwapChainExtent;
+//	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+//
+//	const VkBuffer vertexBuffers[]
+//	{
+//		m_VkTestModelVertexBuffer
+//	};
+//
+//	constexpr VkDeviceSize offsets[]
+//	{
+//		0
+//	};
+//
+//	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+//	vkCmdBindIndexBuffer(commandBuffer, m_VkTestModelIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+//	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipelineLayout, 0, 1, &m_VkDescriptorSets[m_CurrentFrame], 0, nullptr);
+//
+//	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_TestModelIndices.size()), 1, 0, 0, 0);
+//	vkCmdEndRenderPass(commandBuffer);
+//	HandleVkResult(vkEndCommandBuffer(commandBuffer));
+//}
 
 void GraphicsAPI::CreateSyncObjects()
 {
@@ -1198,48 +1299,6 @@ void GraphicsAPI::RecreateSwapchain()
 	CreateSwapchainImageViews();
 	CreateDepthResources();
 	CreateFrameBuffers();
-}
-
-void GraphicsAPI::CreateVertexBuffer()
-{
-	const VkDeviceSize bufferSize{ sizeof(Vertex) * m_TestModelVertices.size() };
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-	void* data;
-	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, m_TestModelVertices.data(), bufferSize);
-	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
-
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelVertexBuffer, m_VkTestModelVertexBufferMemory);
-
-	CopyBuffer(stagingBuffer, m_VkTestModelVertexBuffer, bufferSize);
-
-	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
-	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
-}
-
-void GraphicsAPI::CreateIndexBuffer()
-{
-	const VkDeviceSize bufferSize{ sizeof(uint32_t) * m_TestModelIndices.size() };
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-	void* data;
-	vkMapMemory(m_VkDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, m_TestModelIndices.data(), bufferSize);
-	vkUnmapMemory(m_VkDevice, stagingBufferMemory);
-
-	CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelIndexBuffer, m_VkTestModelIndexBufferMemory);
-
-	CopyBuffer(stagingBuffer, m_VkTestModelIndexBuffer, bufferSize);
-
-	vkDestroyBuffer(m_VkDevice, stagingBuffer, nullptr);
-	vkFreeMemory(m_VkDevice, stagingBufferMemory, nullptr);
 }
 
 uint32_t GraphicsAPI::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const

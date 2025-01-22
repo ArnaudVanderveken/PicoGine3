@@ -1,3 +1,4 @@
+// ReSharper disable CppExpressionWithoutSideEffects
 #include "pch.h"
 #include "Scene.h"
 
@@ -5,8 +6,15 @@
 
 void Scene::Initialize()
 {
-	m_Ecs.system<>().each(Systems::Test);
+	// SYSTEMS
+	m_RenderSystems.emplace_back(m_Ecs.system<Components::Transform, Components::Mesh>().each(Systems::MeshRenderer));
 
+	// MATERIALS
+
+	// ENTITIES
+	m_Ecs.entity()
+		.add<Components::Transform>()
+		.add<Components::Mesh>(L"Resources/Models/viking_room.obj");
 }
 
 void Scene::Start() const

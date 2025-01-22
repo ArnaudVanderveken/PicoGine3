@@ -11,6 +11,13 @@ class Renderer final : public Singleton<Renderer>
 	friend class Singleton<Renderer>;
 	explicit Renderer() = default;
 
+	struct RenderEntry
+	{
+		uint32_t m_MeshDataID{};
+		uint32_t m_MaterialID{};
+		XMMATRIX m_TransformMatrix{};
+	};
+
 public:
 	~Renderer() override = default;
 
@@ -22,13 +29,17 @@ public:
 	void Initialize();
 	[[nodiscard]] bool IsInitialized() const;
 
+	[[nodiscard]] GraphicsAPI* GetGraphicsAPI() const;
+
+	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform);
 	void DrawFrame() const;
 
 private:
 	bool m_IsInitialized{};
 
-	std::unique_ptr<GraphicsAPI> m_pGraphicsAPI;
+	std::unique_ptr<GraphicsAPI> m_pGraphicsAPI{};
 
+	std::vector<RenderEntry> m_RenderEntries{};
 };
 
 #endif //RENDERER_H

@@ -3,6 +3,9 @@
 
 #include "flecs.h"
 
+#include "ResourceManager.h"
+#include "Vertex.h"
+
 namespace Components
 {
 	struct Transform
@@ -165,6 +168,41 @@ namespace Components
 				UpdateCachedWorldTransform(e);
 
 			return m_CachedWorldTransform;
+		}
+	};
+
+	struct Mesh
+	{
+	private:
+		uint32_t m_MeshDataID{};
+		uint32_t m_MaterialID{};
+
+	public:
+		Mesh(const std::wstring& filename, uint32_t materialID = 0) :
+			m_MeshDataID{ ResourceManager::Get().LoadMesh(filename) },
+			m_MaterialID{ materialID }
+		{}
+
+		~Mesh() = default;
+
+		Mesh(const Mesh&) noexcept = delete;
+		Mesh& operator=(const Mesh&) noexcept = delete;
+		Mesh(Mesh&&) noexcept = delete;
+		Mesh& operator=(Mesh&&) noexcept = delete;
+
+		[[nodiscard]] uint32_t GetMeshDataID() const
+		{
+			return m_MeshDataID;
+		}
+
+		[[nodiscard]] uint32_t GetMaterialID() const
+		{
+			return m_MaterialID;
+		}
+
+		void SetMaterial(uint32_t materialID)
+		{
+			m_MaterialID = materialID;
 		}
 	};
 }

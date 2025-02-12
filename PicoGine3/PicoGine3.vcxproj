@@ -258,6 +258,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">4310;4701;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">4310;4701;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
+    <ClCompile Include="GfxDevice.cpp" />
     <ClCompile Include="GraphicsAPI.cpp" />
     <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="Logger.cpp" />
@@ -281,6 +282,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="Components.hpp" />
     <ClInclude Include="CoreSystems.h" />
     <ClInclude Include="flecs.h" />
+    <ClInclude Include="GfxDevice.h" />
     <ClInclude Include="GraphicsAPI.h" />
     <ClInclude Include="Helpers.h" />
     <ClInclude Include="InputManager.h" />

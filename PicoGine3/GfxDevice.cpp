@@ -5,6 +5,10 @@
 #include "WindowManager.h"
 
 
+#if defined(_DX)
+
+#elif defined(_VK)
+
 GfxDevice::GfxDevice()
 {
 	CreateVkInstance();
@@ -636,5 +640,7 @@ void GfxDevice::CleanupDebugMessenger() const
 {
 	DestroyDebugUtilsMessengerEXT(m_VkInstance, m_VkDebugMessenger, nullptr);
 }
+
+#endif //#if defined(_DX) #elif defined(_VK)
 
 #endif //defined(_DEBUG)

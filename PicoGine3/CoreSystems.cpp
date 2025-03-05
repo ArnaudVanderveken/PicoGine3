@@ -3,7 +3,9 @@
 
 #include "InputManager.h"
 #include "Renderer.h"
+#include "SceneManager.h"
 #include "Settings.h"
+#include "TimeManager.h"
 #include "WindowManager.h"
 
 
@@ -13,16 +15,20 @@ void CoreSystems::Initialize()
 
 	Settings::Get().Initialize();
 	WindowManager::Get().Initialize();
+	TimeManager::Get().Initialize();
 	InputManager::Get().Initialize();
 	Renderer::Get().Initialize();
+	SceneManager::Get().Initialize();
 }
 
 bool CoreSystems::IsInitialized()
 {
 	return Settings::Get().IsInitialized()
 		&& WindowManager::Get().IsInitialized()
+		&& TimeManager::Get().IsInitialized()
 		&& InputManager::Get().IsInitialized()
-		&& Renderer::Get().IsInitialized();
+		&& Renderer::Get().IsInitialized()
+		&& SceneManager::Get().IsInitialized();
 }
 
 HINSTANCE CoreSystems::GetAppHinstance() const
@@ -32,10 +38,24 @@ HINSTANCE CoreSystems::GetAppHinstance() const
 
 HRESULT CoreSystems::CoreLoop() const
 {
+	auto& settings{ Settings::Get() };
+	auto& time{ TimeManager::Get() };
+	auto& input{ InputManager::Get() };
+	auto& renderer{ Renderer::Get() };
+	auto& sceneManager{ SceneManager::Get() };
+
+	time.SetTargetFPS(settings.GetMaxFPS());
+	const float fixedUpdateStep{ time.GetFixedTimeStep() };
+	float fixedUpdateLag{};
+
 	MSG msg;
 	ZeroMemory(&msg, sizeof(MSG));
 	do
 	{
+		// Start frame timer and update DeltaTime
+		time.Update();
+
+		// Windows message pump
 		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
@@ -45,16 +65,35 @@ HRESULT CoreSystems::CoreLoop() const
 		}
 
         // Update inputs and exec commands
-		InputManager::Get().UpdateAndExec();
+		input.UpdateAndExec();
 
-        // Update scene
+		// Scene FixedUpdate
+		fixedUpdateLag += time.GetElapsedTime();
+		while (fixedUpdateLag >= fixedUpdateStep)
+		{
+			sceneManager.FixedUpdate();
+			fixedUpdateLag -= fixedUpdateStep;
+		}
+
+        // Scene Update
+		sceneManager.Update();
+
+		// Scene LateUpdate
+		sceneManager.LateUpdate();
 
         // Render scene (only if not minimized)
 		if (!m_AppMinimized)
-			Renderer::Get().DrawFrame();
+		{
+			sceneManager.Render();
+			renderer.DrawFrame();
+		}
 
 		// Clear current frame keys up/down buffer in InputManager
-		InputManager::Get().EndFrame();
+		input.EndFrame();
+
+		// End frame timer and sleep for frame cap
+		if (settings.IsFrameCapEnabled())
+			std::this_thread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(time.GetTimeToNextFrame()));
 
 	} while (msg.message != WM_QUIT);
 

@@ -42,7 +42,7 @@ void InputManager::UpdateAndExec()
 		WindowManager::Get().SetFullscreenState(WindowFullscreenState::Borderless);
 
 	if (IsKeyUp(KC_V))
-		Settings::Get().SetVSync(!Settings::Get().GetVSync());
+		Settings::Get().SetVSync(!Settings::Get().IsVSyncEnabled());
 
 	if (IsKeyUp(KC_ESCAPE))
 		::PostQuitMessage(0);

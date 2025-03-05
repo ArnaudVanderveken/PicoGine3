@@ -60,7 +60,6 @@ public:
 	void BeginFrame();
 	void EndFrame();
 	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform) const;
-	//void DrawTestModel();
 
 private:
 	bool m_IsInitialized;
@@ -71,16 +70,13 @@ private:
 
 	GfxDevice m_GfxDevice;
 	
-	VkSwapchainKHR m_VkSwapChain;
-	std::vector<VkImage> m_VkSwapChainImages;
-	VkFormat m_VkSwapChainImageFormat;
-	VkExtent2D m_VkSwapChainExtent;
-	std::vector<VkImageView> m_VkSwapChainImageViews;
+	
+	
 	VkRenderPass m_VkRenderPass;
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkGraphicsPipelineLayout;
 	VkPipeline m_VkGraphicsPipeline;
-	std::vector<VkFramebuffer> m_VkFrameBuffers;
+	
 	
 	std::vector<VkCommandBuffer> m_VkCommandBuffers;
 	std::vector<VkSemaphore> m_VkImageAvailableSemaphores;

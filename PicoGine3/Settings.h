@@ -21,7 +21,9 @@ public:
 
 	[[nodiscard]] const wchar_t* GetWindowName() const;
 	[[nodiscard]] const XMINT2& GetDesiredResolution() const;
-	[[nodiscard]] bool GetVSync() const;
+	[[nodiscard]] bool IsVSyncEnabled() const;
+	[[nodiscard]] bool IsFrameCapEnabled() const;
+	[[nodiscard]] float GetMaxFPS() const;
 	[[nodiscard]] WindowFullscreenState GetWindowFullscreenStartState() const;
 
 	void SetVSync(bool value);
@@ -43,6 +45,8 @@ private:
 
 	XMINT2 m_DesiredResolution{ 1920, 1080 };
 	bool m_VSync{ false }; // Currently unused
+	bool m_FrameCap{ false };
+	float m_MaxFPS{ 240.0f };
 	WindowFullscreenState m_WindowFullscreenStartState{ WindowFullscreenState::None };
 
 };

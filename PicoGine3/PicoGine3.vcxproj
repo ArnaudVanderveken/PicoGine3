@@ -259,6 +259,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">4310;4701;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="GfxDevice.cpp" />
+    <ClCompile Include="GfxSwapchain.cpp" />
     <ClCompile Include="GraphicsAPI.cpp" />
     <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="Logger.cpp" />
@@ -275,6 +276,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClCompile Include="Scene.cpp" />
     <ClCompile Include="SceneManager.cpp" />
     <ClCompile Include="Settings.cpp" />
+    <ClCompile Include="TimeManager.cpp" />
     <ClCompile Include="WindowManager.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -283,6 +285,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="CoreSystems.h" />
     <ClInclude Include="flecs.h" />
     <ClInclude Include="GfxDevice.h" />
+    <ClInclude Include="GfxSwapchain.h" />
     <ClInclude Include="GraphicsAPI.h" />
     <ClInclude Include="Helpers.h" />
     <ClInclude Include="InputManager.h" />
@@ -298,6 +301,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="Settings.h" />
     <ClInclude Include="Singleton.h" />
     <ClInclude Include="Systems.hpp" />
+    <ClInclude Include="TimeManager.h" />
     <ClInclude Include="Vertex.h" />
     <ClInclude Include="WindowFullscreenState.h" />
     <ClInclude Include="WindowManager.h" />

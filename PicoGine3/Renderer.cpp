@@ -25,6 +25,7 @@ void Renderer::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX
 
 void Renderer::DrawFrame() const
 {
+	// For now, brute force rendering, no batching no instancing, simply rendering all models in order.
 	if (m_pGraphicsAPI->IsInitialized())
 	{
 		m_pGraphicsAPI->BeginFrame();

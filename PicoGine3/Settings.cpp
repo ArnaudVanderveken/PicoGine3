@@ -22,9 +22,19 @@ const XMINT2& Settings::GetDesiredResolution() const
 	return m_DesiredResolution;
 }
 
-bool Settings::GetVSync() const
+bool Settings::IsVSyncEnabled() const
 {
 	return m_VSync;
+}
+
+bool Settings::IsFrameCapEnabled() const
+{
+	return m_FrameCap;
+}
+
+float Settings::GetMaxFPS() const
+{
+	return m_MaxFPS;
 }
 
 WindowFullscreenState Settings::GetWindowFullscreenStartState() const

@@ -185,10 +185,10 @@ namespace Components
 
 		~Mesh() = default;
 
-		Mesh(const Mesh&) noexcept = delete;
-		Mesh& operator=(const Mesh&) noexcept = delete;
-		Mesh(Mesh&&) noexcept = delete;
-		Mesh& operator=(Mesh&&) noexcept = delete;
+		Mesh(const Mesh&) noexcept = default;
+		Mesh& operator=(const Mesh&) noexcept = default;
+		Mesh(Mesh&&) noexcept = default;
+		Mesh& operator=(Mesh&&) noexcept = default;
 
 		[[nodiscard]] uint32_t GetMeshDataID() const
 		{

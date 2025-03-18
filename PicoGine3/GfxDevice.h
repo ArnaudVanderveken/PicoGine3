@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GFXDEVICE_H
+#define GFXDEVICE_H
 
 #if defined(_DX)
 
@@ -55,6 +56,7 @@ public:
 	[[nodiscard]] VkCommandPool GetCommandPool() const;
 	[[nodiscard]] VkDevice GetDevice() const;
 	[[nodiscard]] VkPhysicalDeviceProperties GetPhysicalDeviceProperties() const;
+	[[nodiscard]] VkSurfaceKHR GetSurface() const;
 	[[nodiscard]] VkQueue GetGraphicsQueue() const;
 	[[nodiscard]] VkQueue GetPresentQueue() const;
 	[[nodiscard]] QueueFamilyIndices GetQueueFamilyIndices() const;
@@ -62,6 +64,7 @@ public:
 	[[nodiscard]] SwapChainSupportDetails SwapChainSupport() const;
 	[[nodiscard]] uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 	[[nodiscard]] VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
+	[[nodiscard]] VkFormatProperties GetFormatProperties(VkFormat format) const;
 
 	[[nodiscard]] VkCommandBuffer BeginSingleTimeCmdBuffer() const;
 	void EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const;
@@ -130,3 +133,5 @@ private:
 };
 
 #endif
+
+#endif //GFXDEVICE_H

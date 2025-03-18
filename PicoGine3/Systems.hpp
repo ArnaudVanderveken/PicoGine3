@@ -9,14 +9,16 @@ namespace Systems
 {
 	using namespace Components;
 
-	void MeshRenderer(flecs::iter& it, Transform* pTransform, Mesh* pMesh)
+	void MeshRenderer(flecs::iter& it)
 	{
 		auto& renderer{ Renderer::Get() };
+		const auto transforms{ it.field<Transform>(0) };
+		const auto meshes{ it.field<Mesh>(1) };
 
 		for (const auto i : it)
 		{
 			auto e{ it.entity(i) };
-			renderer.DrawMesh(pMesh->GetMeshDataID(), pMesh->GetMaterialID(), pTransform->GetWorldTransform(e));
+			renderer.DrawMesh(meshes[i].GetMeshDataID(), meshes[i].GetMaterialID(), transforms[i].GetWorldTransform(e));
 		}
 	}
 }

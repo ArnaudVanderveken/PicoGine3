@@ -57,6 +57,11 @@ VkPhysicalDeviceProperties GfxDevice::GetPhysicalDeviceProperties() const
 	return m_VkPhysicalDeviceProperties;
 }
 
+VkSurfaceKHR GfxDevice::GetSurface() const
+{
+	return m_VkSurface;
+}
+
 VkQueue GfxDevice::GetGraphicsQueue() const
 {
 	return m_VkGraphicsQueue;
@@ -105,6 +110,13 @@ VkFormat GfxDevice::FindSupportedFormat(const std::vector<VkFormat>& candidates,
 	}
 	Logger::Get().LogError(L"No supported format in given candidates.");
 	return candidates[0]; // Never executed. Quiet "not all path returns a value"
+}
+
+VkFormatProperties GfxDevice::GetFormatProperties(VkFormat format) const
+{
+	VkFormatProperties formatProperties;
+	vkGetPhysicalDeviceFormatProperties(m_VkPhysicalDevice, format, &formatProperties);
+	return formatProperties;
 }
 
 VkCommandBuffer GfxDevice::BeginSingleTimeCmdBuffer() const

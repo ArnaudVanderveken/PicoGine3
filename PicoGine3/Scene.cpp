@@ -13,8 +13,9 @@ void Scene::Initialize()
 
 	// ENTITIES
 	m_Ecs.entity()
-		.add<Components::Transform>()
-		.add<Components::Mesh>(L"Resources/Models/viking_room.obj");
+		.emplace<Components::Transform>(XMFLOAT3{ 0.0f, 0.0f, 0.0f }, XMFLOAT3{ 0.0f, 0.0f, 0.0f }, XMFLOAT3{ 1.0f, 1.0f, 1.0f })
+		.emplace<Components::Mesh>(L"Resources/Models/viking_room.obj");
+
 }
 
 void Scene::Start() const

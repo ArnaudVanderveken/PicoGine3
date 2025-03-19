@@ -10,7 +10,7 @@ namespace Systems
 	using namespace Components;
 	using system_type = void(*)(entt::registry&);
 
-	void MeshRenderer(entt::registry& registry)
+	inline void MeshRenderer(entt::registry& registry)
 	{
 		auto& renderer{ Renderer::Get() };
 

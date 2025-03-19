@@ -1,12 +1,7 @@
 #ifndef SCENE_H
 #define SCENE_H
 
-#pragma warning(push)
-#pragma warning(disable:6386)
-#pragma warning(disable:4127)
-#pragma warning(disable:4244)
-#include "flecs.h"
-#pragma warning(pop)
+#include "Systems.hpp"
 
 class Scene final
 {
@@ -20,20 +15,20 @@ public:
 	Scene& operator=(Scene&&) noexcept = delete;
 
 	void Initialize();
-	void Start() const;
-	void Update() const;
-	void LateUpdate() const;
-	void FixedUpdate() const;
-	void Render() const;
+	void Start();
+	void Update();
+	void LateUpdate();
+	void FixedUpdate();
+	void Render();
 
 private:
-	flecs::world m_Ecs{};
+	entt::registry m_Ecs{};
 
-	std::vector<flecs::system> m_StartSystems{};
-	std::vector<flecs::system> m_UpdateSystems{};
-	std::vector<flecs::system> m_LateUpdateSystems{};
-	std::vector<flecs::system> m_FixedUpdateSystems{};
-	std::vector<flecs::system> m_RenderSystems{};
+	std::vector<Systems::system_type> m_StartSystems{};
+	std::vector<Systems::system_type> m_UpdateSystems{};
+	std::vector<Systems::system_type> m_LateUpdateSystems{};
+	std::vector<Systems::system_type> m_FixedUpdateSystems{};
+	std::vector<Systems::system_type> m_RenderSystems{};
 };
 
 #endif //SCENE_H

@@ -8,19 +8,22 @@
 namespace Systems
 {
 	using namespace Components;
+	using system_type = void(*)(entt::registry&);
 
-	void MeshRenderer(flecs::iter& it)
+	void MeshRenderer(entt::registry& registry)
 	{
 		auto& renderer{ Renderer::Get() };
-		const auto transforms{ it.field<Transform>(0) };
-		const auto meshes{ it.field<Mesh>(1) };
 
-		for (const auto i : it)
+		const auto view{ registry.view<Transform, Mesh>() };
+
+		for (const auto entity : view)
 		{
-			auto e{ it.entity(i) };
-			renderer.DrawMesh(meshes[i].GetMeshDataID(), meshes[i].GetMaterialID(), transforms[i].GetWorldTransform(e));
+			auto& transform{ view.get<Transform>(entity) };
+			auto& mesh{ view.get<Mesh>(entity) };
+
+			renderer.DrawMesh(mesh.GetMeshDataID(), mesh.GetMaterialID(), transform.GetWorldTransform(registry));
 		}
-	}
+	};
 }
 
 #endif //SYSTEMS_HPP

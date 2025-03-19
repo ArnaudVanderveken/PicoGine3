@@ -1,7 +1,6 @@
 #ifndef COMPONENTS_HPP
 #define COMPONENTS_HPP
 
-#include "flecs.h"
 
 #include "ResourceManager.h"
 #include "Vertex.h"
@@ -16,17 +15,17 @@ namespace Components
 		XMFLOAT3 m_LocalScale{ 1.0f, 1.0f, 1.0f };
 		XMMATRIX m_CachedWorldTransform{};
 		bool m_DirtyFlag{ true };
+		entt::entity m_Parent{ entt::null };
 
-		void UpdateCachedWorldTransform(const flecs::entity& e)
+		void UpdateCachedWorldTransform(entt::registry& registry)
 		{
 			const XMMATRIX translation{ XMMatrixTranslation(m_LocalPosition.x, m_LocalPosition.y, m_LocalPosition.z) };
 			const XMMATRIX rotation{ XMMatrixRotationRollPitchYaw(XMConvertToRadians(m_LocalRotation.x), XMConvertToRadians(m_LocalRotation.y), XMConvertToRadians(m_LocalRotation.z)) };
 			const XMMATRIX scale{ XMMatrixScaling(m_LocalScale.x, m_LocalScale.y, m_LocalScale.z) };
 			const XMMATRIX localTransform{ translation * rotation * scale };
 
-			const auto& parent{ e.parent() };
-			if (parent.is_alive() && parent.has<Transform>())
-				m_CachedWorldTransform = localTransform * parent.get_mut<Transform>()->GetWorldTransform(parent);
+			if (m_Parent != entt::null)
+				m_CachedWorldTransform = localTransform * registry.get<Transform>(m_Parent).GetWorldTransform(registry);
 			else
 				m_CachedWorldTransform = localTransform;
 
@@ -57,11 +56,10 @@ namespace Components
 			return *this;
 		}
 
-		[[nodiscard]] bool IsDirty(const flecs::entity& e) const
+		[[nodiscard]] bool IsDirty(entt::registry& registry) const
 		{
-			const auto& parent{ e.parent() };
-			if (parent.is_alive() && parent.has<Transform>())
-				return m_DirtyFlag && parent.get<Transform>()->IsDirty(parent);
+			if (m_Parent != entt::null)
+				return m_DirtyFlag && registry.get<Transform>(m_Parent).IsDirty(registry);
 
 			return m_DirtyFlag;
 		}
@@ -70,12 +68,10 @@ namespace Components
 		{
 			return m_LocalPosition;
 		}
-
 		[[nodiscard]] const XMFLOAT3& GetLocalRotation() const
 		{
 			return m_LocalRotation;
 		}
-
 		[[nodiscard]] const XMFLOAT3& GetLocalScale() const
 		{
 			return m_LocalScale;
@@ -86,7 +82,6 @@ namespace Components
 			m_LocalPosition = position;
 			m_DirtyFlag = true;
 		}
-
 		void SetLocalPosition(float x, float y, float z)
 		{
 			m_LocalPosition.x = x;
@@ -94,12 +89,10 @@ namespace Components
 			m_LocalPosition.z = z;
 			m_DirtyFlag = true;
 		}
-
 		void AddLocalPosition(const XMFLOAT3& position)
 		{
 			AddLocalPosition(position.x, position.y, position.z);
 		}
-
 		void AddLocalPosition(float x, float y, float z)
 		{
 			m_LocalPosition.x += x;
@@ -113,7 +106,6 @@ namespace Components
 			m_LocalRotation = rotation;
 			m_DirtyFlag = true;
 		}
-
 		void SetLocalRotation(float x, float y, float z)
 		{
 			m_LocalRotation.x = x;
@@ -121,12 +113,10 @@ namespace Components
 			m_LocalRotation.z = z;
 			m_DirtyFlag = true;
 		}
-
 		void AddLocalRotation(const XMFLOAT3& rotation)
 		{
 			AddLocalRotation(rotation.x, rotation.y, rotation.z);
 		}
-
 		void AddLocalRotation(float x, float y, float z)
 		{
 			m_LocalRotation.x += x;
@@ -140,7 +130,6 @@ namespace Components
 			m_LocalScale = scale;
 			m_DirtyFlag = true;
 		}
-
 		void SetLocalScale(float x, float y, float z)
 		{
 			m_LocalScale.x = x;
@@ -148,12 +137,10 @@ namespace Components
 			m_LocalScale.z = z;
 			m_DirtyFlag = true;
 		}
-
 		void AddLocalScale(const XMFLOAT3& scale)
 		{
 			AddLocalScale(scale.x, scale.y, scale.z);
 		}
-
 		void AddLocalScale(float x, float y, float z)
 		{
 			m_LocalScale.x += x;
@@ -162,14 +149,20 @@ namespace Components
 			m_DirtyFlag = true;
 		}
 
-		[[nodiscard]] const XMMATRIX& GetWorldTransform(const flecs::entity& e)
+		[[nodiscard]] const XMMATRIX& GetWorldTransform(entt::registry& registry)
 		{
-			if (IsDirty(e))
-				UpdateCachedWorldTransform(e);
+			if (IsDirty(registry))
+				UpdateCachedWorldTransform(registry);
 
 			return m_CachedWorldTransform;
 		}
+
+		void SetParent(entt::entity parent = entt::null)
+		{
+			m_Parent = parent;
+		}
 	};
+
 
 	struct Mesh
 	{

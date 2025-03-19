@@ -23,7 +23,17 @@ bool GraphicsAPI::IsInitialized() const
 	return m_IsInitialized;
 }
 
-void GraphicsAPI::DrawTestModel()
+void GraphicsAPI::BeginFrame()
+{
+	
+}
+
+void GraphicsAPI::EndFrame()
+{
+	
+}
+
+void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform) const
 {
 	
 }

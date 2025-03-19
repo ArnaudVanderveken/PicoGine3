@@ -89,7 +89,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_DX12;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -129,7 +129,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions);VK_USE_PLATFORM_WIN32_KHR</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -171,7 +171,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_DX12;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -209,7 +209,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions);VK_USE_PLATFORM_WIN32_KHR</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -240,24 +240,6 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CoreSystems.cpp" />
-    <ClCompile Include="flecs.c">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-DX12|x64'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release-VK|x64'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">NotUsing</PrecompiledHeader>
-      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug-DX12|x64'">CompileAsC</CompileAs>
-      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release-VK|x64'">CompileAsC</CompileAs>
-      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">CompileAsC</CompileAs>
-      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">CompileAsC</CompileAs>
-      <TreatWarningAsError Condition="'$(Configuration)|$(Platform)'=='Debug-DX12|x64'">false</TreatWarningAsError>
-      <TreatWarningAsError Condition="'$(Configuration)|$(Platform)'=='Release-VK|x64'">false</TreatWarningAsError>
-      <TreatWarningAsError Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">false</TreatWarningAsError>
-      <TreatWarningAsError Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">false</TreatWarningAsError>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug-DX12|x64'">4310;4701;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release-VK|x64'">4310;4701;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug-VK|x64'">4310;4701;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release-DX12|x64'">4310;4701;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-    </ClCompile>
     <ClCompile Include="GfxDevice.cpp" />
     <ClCompile Include="GfxSwapchain.cpp" />
     <ClCompile Include="GraphicsAPI.cpp" />
@@ -283,7 +265,6 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="CleanedWindows.h" />
     <ClInclude Include="Components.hpp" />
     <ClInclude Include="CoreSystems.h" />
-    <ClInclude Include="flecs.h" />
     <ClInclude Include="GfxDevice.h" />
     <ClInclude Include="GfxSwapchain.h" />
     <ClInclude Include="GraphicsAPI.h" />

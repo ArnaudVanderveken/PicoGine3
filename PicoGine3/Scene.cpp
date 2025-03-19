@@ -2,48 +2,50 @@
 #include "pch.h"
 #include "Scene.h"
 
-#include "Systems.hpp"
 
 void Scene::Initialize()
 {
+	using namespace Systems;
+	using namespace Components;
+
 	// SYSTEMS
-	m_RenderSystems.emplace_back(m_Ecs.system<Components::Transform, Components::Mesh>().each(Systems::MeshRenderer));
+	m_RenderSystems.emplace_back(MeshRenderer);
 
 	// MATERIALS
 
 	// ENTITIES
-	m_Ecs.entity()
-		.emplace<Components::Transform>(XMFLOAT3{ 0.0f, 0.0f, 0.0f }, XMFLOAT3{ 0.0f, 0.0f, 0.0f }, XMFLOAT3{ 1.0f, 1.0f, 1.0f })
-		.emplace<Components::Mesh>(L"Resources/Models/viking_room.obj");
+	auto entity{ m_Ecs.create() };
+	m_Ecs.emplace<Transform>(entity, XMFLOAT3{ 0.0f, 0.0f, 0.0f }, XMFLOAT3{ 0.0f, 0.0f, 0.0f }, XMFLOAT3{ 1.0f, 1.0f, 1.0f });
+	m_Ecs.emplace<Mesh>(entity, L"Resources/Models/viking_room.obj");
 
 }
 
-void Scene::Start() const
+void Scene::Start()
 {
 	for (const auto& system : m_StartSystems)
-		system.run();
+		system(m_Ecs);
 }
 
-void Scene::Update() const
+void Scene::Update()
 {
 	for (const auto& system : m_UpdateSystems)
-		system.run();
+		system(m_Ecs);
 }
 
-void Scene::LateUpdate() const
+void Scene::LateUpdate()
 {
 	for (const auto& system : m_LateUpdateSystems)
-		system.run();
+		system(m_Ecs);
 }
 
-void Scene::FixedUpdate() const
+void Scene::FixedUpdate()
 {
 	for (const auto& system : m_FixedUpdateSystems)
-		system.run();
+		system(m_Ecs);
 }
 
-void Scene::Render() const
+void Scene::Render()
 {
 	for (const auto& system : m_RenderSystems)
-		system.run();
+		system(m_Ecs);
 }

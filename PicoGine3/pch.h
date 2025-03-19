@@ -32,7 +32,7 @@ using namespace DirectX;
 #pragma comment(lib, "Xinput.lib")
 
 /* --- 3RD PARTY --- */
-
+#include <entt.hpp>
 
 /* --- PROJECT FILES --- */
 #include "Logger.h"

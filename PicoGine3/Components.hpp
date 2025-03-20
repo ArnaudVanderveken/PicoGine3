@@ -22,7 +22,7 @@ namespace Components
 			const XMMATRIX translation{ XMMatrixTranslation(m_LocalPosition.x, m_LocalPosition.y, m_LocalPosition.z) };
 			const XMMATRIX rotation{ XMMatrixRotationRollPitchYaw(XMConvertToRadians(m_LocalRotation.x), XMConvertToRadians(m_LocalRotation.y), XMConvertToRadians(m_LocalRotation.z)) };
 			const XMMATRIX scale{ XMMatrixScaling(m_LocalScale.x, m_LocalScale.y, m_LocalScale.z) };
-			const XMMATRIX localTransform{ translation * rotation * scale };
+			const XMMATRIX localTransform{ scale * rotation * translation };
 
 			if (m_Parent != entt::null)
 			{

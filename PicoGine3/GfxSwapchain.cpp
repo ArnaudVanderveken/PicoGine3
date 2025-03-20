@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "GfxSwapchain.h"
 
+#include "Settings.h"
 #include "WindowManager.h"
 
 #if defined(_DX)
@@ -177,9 +178,12 @@ VkSurfaceFormatKHR GfxSwapchain::ChooseSwapSurfaceFormat(const std::vector<VkSur
 
 VkPresentModeKHR GfxSwapchain::ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
 {
-	for (const auto& availablePresentMode : availablePresentModes)
-		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
-			return availablePresentMode;
+	const auto& settings{ Settings::Get() };
+
+	if (!settings.IsVSyncEnabled())
+		for (const auto& availablePresentMode : availablePresentModes)
+			if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+				return availablePresentMode;
 
 	return VK_PRESENT_MODE_FIFO_KHR;
 }

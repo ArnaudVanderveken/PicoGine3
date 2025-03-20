@@ -451,7 +451,7 @@ void GfxDevice::SelectPhysicalDevice()
 		{
 			m_VkPhysicalDevice = device;
 			vkGetPhysicalDeviceProperties(m_VkPhysicalDevice, &m_VkPhysicalDeviceProperties);
-			break;
+			return;
 		}
 	}
 

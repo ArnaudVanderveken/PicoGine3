@@ -14,6 +14,7 @@ class ResourceManager final : public Singleton<ResourceManager>
 	{
 		[[nodiscard]] uint32_t Load(const std::wstring& filename);
 		[[nodiscard]] const MeshData& GetMeshData(uint32_t id) const;
+		void ReleaseGPUBuffers();
 
 	private:
 		std::unordered_map<std::wstring, uint32_t> m_LoadedFiles{};
@@ -35,6 +36,8 @@ public:
 
 	[[nodiscard]] uint32_t LoadMesh(const std::wstring& filename) const;
 	//[[nodiscard]] uint32_t LoadTexture(const std::wstring& filename, bool singleChannel = false) const;
+
+	void ReleaseGPUBuffers() const;
 
 private:
 	bool m_IsInitialized{};

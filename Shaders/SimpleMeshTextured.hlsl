@@ -35,14 +35,27 @@ struct VSOutput
 	float2 texcoord : TEXCOORD;
 };
 
-struct UBO
+struct PerFrameUBO
 {
-	float4x4 modelMat;
-	float4x4 viewMat;
-	float4x4 projectionMat;
+	row_major float4x4 viewMat;
+	row_major float4x4 projMat;
+	row_major float4x4 viewInvMat;
+	row_major float4x4 projInvMat;
+	row_major float4x4 viewProjMat;
+	row_major float4x4 viewProjInvMat;
 };
+cbuffer ubo : register(b0, space0) { PerFrameUBO ubo; }
 
-cbuffer ubo : register(b0, space0) { UBO ubo; }
+struct PushConstants
+{
+    row_major float4x4 modelMat;
+};
+#if defined(_VK)
+[[vk::push_constant]]
+#else //DX12
+[[rootconstant(0)]]
+#endif
+PushConstants push;
 
 Texture2D texture : register(t1);
 SamplerState samplerState : register(s1);
@@ -52,7 +65,7 @@ VSOutput VSMain(VSInput input)
 {
 	VSOutput output = (VSOutput)0;
 
-	output.positionCS = mul(ubo.projectionMat, mul(ubo.viewMat, mul(ubo.modelMat, float4(input.positionOS, 1.0f))));
+	output.positionCS = mul(mul(float4(input.positionOS, 1.0f), push.modelMat), ubo.viewProjMat);
 	output.color = input.color;
 	output.texcoord = input.texcoord;
 

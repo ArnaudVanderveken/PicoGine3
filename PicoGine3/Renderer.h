@@ -15,7 +15,7 @@ class Renderer final : public Singleton<Renderer>
 	{
 		uint32_t m_MeshDataID{};
 		uint32_t m_MaterialID{};
-		XMMATRIX m_TransformMatrix{};
+		XMFLOAT4X4 m_TransformMatrix{};
 	};
 
 public:
@@ -31,7 +31,7 @@ public:
 
 	[[nodiscard]] GraphicsAPI* GetGraphicsAPI() const;
 
-	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform);
+	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform);
 	void DrawFrame() const;
 
 private:

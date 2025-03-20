@@ -3,6 +3,7 @@
 
 #include "InputManager.h"
 #include "Renderer.h"
+#include "ResourceManager.h"
 #include "SceneManager.h"
 #include "Settings.h"
 #include "TimeManager.h"
@@ -16,6 +17,7 @@ void CoreSystems::Initialize()
 	Settings::Get().Initialize();
 	WindowManager::Get().Initialize();
 	TimeManager::Get().Initialize();
+	ResourceManager::Get().Initialize();
 	InputManager::Get().Initialize();
 	Renderer::Get().Initialize();
 	SceneManager::Get().Initialize();
@@ -26,6 +28,7 @@ bool CoreSystems::IsInitialized()
 	return Settings::Get().IsInitialized()
 		&& WindowManager::Get().IsInitialized()
 		&& TimeManager::Get().IsInitialized()
+		&& ResourceManager::Get().IsInitialized()
 		&& InputManager::Get().IsInitialized()
 		&& Renderer::Get().IsInitialized()
 		&& SceneManager::Get().IsInitialized();

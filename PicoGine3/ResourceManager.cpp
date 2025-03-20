@@ -73,6 +73,18 @@ const MeshData& ResourceManager::MeshManager::GetMeshData(uint32_t id) const
 	return m_MeshData[id];
 }
 
+void ResourceManager::MeshManager::ReleaseGPUBuffers()
+{
+	const auto graphicsAPI{ Renderer::Get().GetGraphicsAPI() };
+
+	for (const auto& meshData : m_MeshData)
+	{
+		graphicsAPI->ReleaseBuffer(meshData.m_VertexBuffer, meshData.m_VertexBufferMemory);
+		graphicsAPI->ReleaseBuffer(meshData.m_IndexBuffer, meshData.m_IndexBufferMemory);
+	}
+	m_MeshData.clear();
+}
+
 void ResourceManager::Initialize()
 {
 	m_pMeshManager = std::make_unique<MeshManager>();
@@ -93,6 +105,11 @@ const MeshData& ResourceManager::GetMeshData(uint32_t id) const
 uint32_t ResourceManager::LoadMesh(const std::wstring& filename) const
 {
 	return m_pMeshManager->Load(filename);
+}
+
+void ResourceManager::ReleaseGPUBuffers() const
+{
+	m_pMeshManager->ReleaseGPUBuffers();
 }
 
 //uint32_t ResourceManager::LoadTexture(const std::wstring& filename, bool singleChannel) const

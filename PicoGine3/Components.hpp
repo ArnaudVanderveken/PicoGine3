@@ -13,7 +13,7 @@ namespace Components
 		XMFLOAT3 m_LocalPosition{ 0.0f, 0.0f, 0.0f };
 		XMFLOAT3 m_LocalRotation{ 0.0f, 0.0f, 0.0f };
 		XMFLOAT3 m_LocalScale{ 1.0f, 1.0f, 1.0f };
-		XMMATRIX m_CachedWorldTransform{};
+		XMFLOAT4X4 m_CachedWorldTransform{};
 		bool m_DirtyFlag{ true };
 		entt::entity m_Parent{ entt::null };
 
@@ -25,9 +25,13 @@ namespace Components
 			const XMMATRIX localTransform{ translation * rotation * scale };
 
 			if (m_Parent != entt::null)
-				m_CachedWorldTransform = localTransform * registry.get<Transform>(m_Parent).GetWorldTransform(registry);
+			{
+				const auto parentTransform{ registry.get<Transform>(m_Parent).GetWorldTransform(registry) };
+				const XMMATRIX parentTransformMat{ XMLoadFloat4x4(&parentTransform) };
+				XMStoreFloat4x4(&m_CachedWorldTransform, localTransform * parentTransformMat);
+			}
 			else
-				m_CachedWorldTransform = localTransform;
+				XMStoreFloat4x4(&m_CachedWorldTransform, localTransform);
 
 			m_DirtyFlag = false;
 		}
@@ -149,7 +153,7 @@ namespace Components
 			m_DirtyFlag = true;
 		}
 
-		[[nodiscard]] const XMMATRIX& GetWorldTransform(entt::registry& registry)
+		[[nodiscard]] const XMFLOAT4X4& GetWorldTransform(entt::registry& registry)
 		{
 			if (IsDirty(registry))
 				UpdateCachedWorldTransform(registry);

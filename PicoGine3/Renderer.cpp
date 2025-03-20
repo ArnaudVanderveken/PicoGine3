@@ -18,7 +18,7 @@ GraphicsAPI* Renderer::GetGraphicsAPI() const
 	return m_pGraphicsAPI.get();
 }
 
-void Renderer::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform)
+void Renderer::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform)
 {
 	m_RenderEntries.emplace_back(RenderEntry{ meshDataID, materialID, transform });
 }

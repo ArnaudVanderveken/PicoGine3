@@ -35,11 +35,19 @@ private:
 
 #include <vulkan/vulkan.h>
 
-struct UBO
+struct PerFrameUBO
+{
+	alignas(16) XMFLOAT4X4 m_ViewMat;
+	alignas(16) XMFLOAT4X4 m_ProjMat;
+	alignas(16) XMFLOAT4X4 m_ViewInvMat;
+	alignas(16) XMFLOAT4X4 m_ProjInvMat;
+	alignas(16) XMFLOAT4X4 m_ViewProjMat;
+	alignas(16) XMFLOAT4X4 m_ViewProjInvMat;
+};
+
+struct PushConstants
 {
 	alignas(16) XMFLOAT4X4 m_ModelMat;
-	alignas(16) XMFLOAT4X4 m_ViewMat;
-	alignas(16) XMFLOAT4X4 m_ProjectionMat;
 };
 
 class GraphicsAPI final
@@ -57,16 +65,17 @@ public:
 
 	void CreateVertexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const;
 	void CreateIndexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const;
+	void ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const;
 
-	void BeginFrame() const;
-	void EndFrame() const;
-	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMATRIX& transform) const;
+	void BeginFrame();
+	void EndFrame();
+	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform) const;
 
 private:
 	bool m_IsInitialized;
 
-	std::unique_ptr<GfxDevice> m_pGfxDevice;
-	std::unique_ptr<GfxSwapchain> m_pGfxSwapchain;
+	GfxDevice m_GfxDevice;
+	GfxSwapchain m_GfxSwapchain;
 	
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkGraphicsPipelineLayout;
@@ -92,7 +101,7 @@ private:
 	void CreateCommandBuffer();	
 	void CreateDescriptorSetLayout();
 	void CreateUniformBuffers();
-	void UpdateUniformBuffer() const;
+	void UpdatePerFrameUBO() const;
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImage();

@@ -53,8 +53,8 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMAT
 
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false },
-	m_pGfxDevice{ std::make_unique<GfxDevice>() },
-	m_pGfxSwapchain{ std::make_unique<GfxSwapchain>(m_pGfxDevice.get()) }
+	m_GfxDevice{},
+	m_GfxSwapchain{ m_GfxDevice }
 {
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
@@ -71,8 +71,10 @@ GraphicsAPI::GraphicsAPI() :
 
 GraphicsAPI::~GraphicsAPI()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 	vkDeviceWaitIdle(device);
+
+	ResourceManager::Get().ReleaseGPUBuffers();
 
 	vkDestroySampler(device, m_VkTestModelTextureSampler, nullptr);
 	vkDestroyImageView(device, m_VkTestModelTextureImageView, nullptr);
@@ -100,19 +102,19 @@ bool GraphicsAPI::IsInitialized() const
 
 void GraphicsAPI::CreateVertexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const
 {
-	const auto& device = m_pGfxDevice->GetDevice();
+	const auto& device = m_GfxDevice.GetDevice();
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	m_pGfxDevice->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	m_GfxDevice.CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, pBufferData, bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	m_pGfxDevice->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outBuffer, outMemory);
+	m_GfxDevice.CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outBuffer, outMemory);
 
-	m_pGfxDevice->CopyBuffer(stagingBuffer, outBuffer, bufferSize);
+	m_GfxDevice.CopyBuffer(stagingBuffer, outBuffer, bufferSize);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -120,50 +122,58 @@ void GraphicsAPI::CreateVertexBuffer(const void* pBufferData, VkDeviceSize buffe
 
 void GraphicsAPI::CreateIndexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const
 {
-	const auto& device = m_pGfxDevice->GetDevice();
+	const auto& device = m_GfxDevice.GetDevice();
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	m_pGfxDevice->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	m_GfxDevice.CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, pBufferData, bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	m_pGfxDevice->CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outBuffer, outMemory);
+	m_GfxDevice.CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, outBuffer, outMemory);
 
-	m_pGfxDevice->CopyBuffer(stagingBuffer, outBuffer, bufferSize);
+	m_GfxDevice.CopyBuffer(stagingBuffer, outBuffer, bufferSize);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void GraphicsAPI::BeginFrame() const
+void GraphicsAPI::ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const
 {
-	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+	const auto& device = m_GfxDevice.GetDevice();
 
-	const auto vkResult{ m_pGfxSwapchain->AcquireNextImage() };
+	vkDestroyBuffer(device, buffer, nullptr);
+	vkFreeMemory(device, memory, nullptr);
+}
+
+void GraphicsAPI::BeginFrame()
+{
+	const auto currentFrameIndex{ m_GfxSwapchain.GetCurrentFrameIndex() };
+
+	const auto vkResult{ m_GfxSwapchain.AcquireNextImage() };
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR)
 	{
-		m_pGfxSwapchain->RecreateSwapchain();
+		m_GfxSwapchain.RecreateSwapchain();
 		return;
 	}
 
 	if (vkResult != VK_SUCCESS && vkResult != VK_SUBOPTIMAL_KHR)
 		HandleVkResult(vkResult);
 
-	m_pGfxSwapchain->ResetFrameInFlightFence();
+	m_GfxSwapchain.ResetFrameInFlightFence();
 	vkResetCommandBuffer(m_VkCommandBuffers[currentFrameIndex], 0);
 
-	UpdateUniformBuffer();
+	UpdatePerFrameUBO();
 
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = 0; // Optional
 	beginInfo.pInheritanceInfo = nullptr; // Optional
-
+	
 	vkBeginCommandBuffer(m_VkCommandBuffers[currentFrameIndex], &beginInfo);
 
 	std::array<VkClearValue, 2> clearValues{};
@@ -172,13 +182,13 @@ void GraphicsAPI::BeginFrame() const
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = m_pGfxSwapchain->GetRenderPass();
-	renderPassInfo.framebuffer = m_pGfxSwapchain->GetCurrentFrameBuffer();
+	renderPassInfo.renderPass = m_GfxSwapchain.GetRenderPass();
+	renderPassInfo.framebuffer = m_GfxSwapchain.GetCurrentFrameBuffer();
 	renderPassInfo.renderArea.offset = { 0, 0 };
-	renderPassInfo.renderArea.extent = m_pGfxSwapchain->GetSwapChainExtent();
+	renderPassInfo.renderArea.extent = m_GfxSwapchain.GetSwapChainExtent();
 	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 	renderPassInfo.pClearValues = clearValues.data();
-
+	
 	vkCmdBeginRenderPass(m_VkCommandBuffers[currentFrameIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 	vkCmdBindPipeline(m_VkCommandBuffers[currentFrameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipeline);
@@ -186,39 +196,43 @@ void GraphicsAPI::BeginFrame() const
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(m_pGfxSwapchain->Width());
-	viewport.height = static_cast<float>(m_pGfxSwapchain->Height());
+	viewport.width = static_cast<float>(m_GfxSwapchain.Width());
+	viewport.height = static_cast<float>(m_GfxSwapchain.Height());
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
+	
 	vkCmdSetViewport(m_VkCommandBuffers[currentFrameIndex], 0, 1, &viewport);
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
-	scissor.extent = m_pGfxSwapchain->GetSwapChainExtent();
+	scissor.extent = m_GfxSwapchain.GetSwapChainExtent();
+	
 	vkCmdSetScissor(m_VkCommandBuffers[currentFrameIndex], 0, 1, &scissor);
 }
 
-void GraphicsAPI::EndFrame() const
+void GraphicsAPI::EndFrame()
 {
-	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+	const auto currentFrameIndex{ m_GfxSwapchain.GetCurrentFrameIndex() };
 
 	vkCmdEndRenderPass(m_VkCommandBuffers[currentFrameIndex]);
 	HandleVkResult(vkEndCommandBuffer(m_VkCommandBuffers[currentFrameIndex]));
 
-	const auto vkResult{ m_pGfxSwapchain->SubmitCommandBuffers(&m_VkCommandBuffers[currentFrameIndex], 1) };
+	const auto vkResult{ m_GfxSwapchain.SubmitCommandBuffers(&m_VkCommandBuffers[currentFrameIndex], 1) };
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
-		m_pGfxSwapchain->RecreateSwapchain();
+		m_GfxSwapchain.RecreateSwapchain();
 
 	else if (vkResult != VK_SUCCESS)
 		HandleVkResult(vkResult);
 }
 
-void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const XMMATRIX& /*transform*/) const
+void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const XMFLOAT4X4& transform) const
 {
 	const auto& resourceManager{ ResourceManager::Get() };
 	const auto& meshData{ resourceManager.GetMeshData(meshDataID) };
-	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+	const auto currentFrameIndex{ m_GfxSwapchain.GetCurrentFrameIndex() };
+
+	const PushConstants pushConstants{ transform };
 
 	const VkBuffer vertexBuffers[]
 	{
@@ -229,6 +243,8 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 	{
 		0
 	};
+
+	vkCmdPushConstants(m_VkCommandBuffers[currentFrameIndex], m_VkGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 
 	vkCmdBindVertexBuffers(m_VkCommandBuffers[currentFrameIndex], 0, 1, vertexBuffers, offsets);
 	vkCmdBindIndexBuffer(m_VkCommandBuffers[currentFrameIndex], meshData.m_IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -257,7 +273,7 @@ std::vector<char> GraphicsAPI::ReadShaderFile(const std::wstring& filename)
 
 VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) const
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
 	VkShaderModuleCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -272,7 +288,7 @@ VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) co
 
 void GraphicsAPI::CreateGraphicsPipeline()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
 	const auto vertShaderCode{ ReadShaderFile(L"Shaders/TestTrianglesTextured_VS.spv") };
 	const auto fragShaderCode{ ReadShaderFile(L"Shaders/TestTrianglesTextured_PS.spv") };
@@ -327,14 +343,14 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(m_pGfxSwapchain->Width());
-	viewport.height = static_cast<float>(m_pGfxSwapchain->Height());
+	viewport.width = static_cast<float>(m_GfxSwapchain.Width());
+	viewport.height = static_cast<float>(m_GfxSwapchain.Height());
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
-	scissor.extent = m_pGfxSwapchain->GetSwapChainExtent();
+	scissor.extent = m_GfxSwapchain.GetSwapChainExtent();
 
 	VkPipelineViewportStateCreateInfo viewportState{};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -384,12 +400,17 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	colorBlending.blendConstants[2] = 0.0f; // Optional
 	colorBlending.blendConstants[3] = 0.0f; // Optional
 
+	VkPushConstantRange pushConstantRange{};
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(PushConstants);
+
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &m_VkDescriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+	pipelineLayoutInfo.pushConstantRangeCount = 1;
+	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
 	HandleVkResult(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_VkGraphicsPipelineLayout));
 
@@ -418,7 +439,7 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
 	pipelineInfo.layout = m_VkGraphicsPipelineLayout;
-	pipelineInfo.renderPass = m_pGfxSwapchain->GetRenderPass();
+	pipelineInfo.renderPass = m_GfxSwapchain.GetRenderPass();
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	pipelineInfo.basePipelineIndex = -1; // Optional
@@ -431,8 +452,8 @@ void GraphicsAPI::CreateGraphicsPipeline()
 
 void GraphicsAPI::CreateCommandBuffer()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
-	const auto& commandPool{ m_pGfxDevice->GetCommandPool() };
+	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& commandPool{ m_GfxDevice.GetCommandPool() };
 
 	m_VkCommandBuffers.resize(GfxSwapchain::sk_MaxFramesInFlight);
 
@@ -447,7 +468,7 @@ void GraphicsAPI::CreateCommandBuffer()
 
 void GraphicsAPI::CreateDescriptorSetLayout()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
 	VkDescriptorSetLayoutBinding uboLayoutBinding{};
 	uboLayoutBinding.binding = 0;
@@ -479,9 +500,9 @@ void GraphicsAPI::CreateDescriptorSetLayout()
 
 void GraphicsAPI::CreateUniformBuffers()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
-	constexpr VkDeviceSize bufferSize{ sizeof(UBO) };
+	constexpr VkDeviceSize bufferSize{ sizeof(PerFrameUBO) };
 
 	m_VkUniformBuffers.resize(GfxSwapchain::sk_MaxFramesInFlight);
 	m_VkUniformBuffersMemory.resize(GfxSwapchain::sk_MaxFramesInFlight);
@@ -489,30 +510,39 @@ void GraphicsAPI::CreateUniformBuffers()
 
 	for (size_t i{}; i < GfxSwapchain::sk_MaxFramesInFlight; ++i)
 	{
-		m_pGfxDevice->CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_VkUniformBuffers[i], m_VkUniformBuffersMemory[i]);
+		m_GfxDevice.CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_VkUniformBuffers[i], m_VkUniformBuffersMemory[i]);
 		vkMapMemory(device, m_VkUniformBuffersMemory[i], 0, bufferSize, 0, &m_VkUniformBuffersMapped[i]);
 	}
 }
 
-void GraphicsAPI::UpdateUniformBuffer() const
+void GraphicsAPI::UpdatePerFrameUBO() const
 {
-	const float time{ TimeManager::Get().GetTotalTime() };
-	const uint32_t currentFrame{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+	const uint32_t currentFrame{ m_GfxSwapchain.GetCurrentFrameIndex() };
 
-	UBO ubo{};
-	XMStoreFloat4x4(&ubo.m_ModelMat, XMMatrixRotationY(time * XMConvertToRadians(90.0f)));
+	PerFrameUBO ubo{};
+
 	static XMFLOAT3 eyePos{ 0.0f, 1.5f, -3.0f };
 	static XMFLOAT3 focusPos{ 0.0f, 0.0f, 0.0f };
 	static XMFLOAT3 upDir{ 0.0f, 1.0f, 0.0f };
-	XMStoreFloat4x4(&ubo.m_ViewMat, XMMatrixLookAtLH(XMLoadFloat3(&eyePos), XMLoadFloat3(&focusPos), XMLoadFloat3(&upDir)));
-	XMStoreFloat4x4(&ubo.m_ProjectionMat, XMMatrixMultiply(XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), m_pGfxSwapchain->AspectRatio(), 0.1f, 10.0f), XMMatrixScaling(1.0f, -1.0f, 1.0f)));
+
+	const auto viewMat{ XMMatrixLookAtLH(XMLoadFloat3(&eyePos), XMLoadFloat3(&focusPos), XMLoadFloat3(&upDir)) };
+	const auto projMat{ XMMatrixPerspectiveFovLH(XM_PIDIV4, m_GfxSwapchain.AspectRatio(), 0.1f, 100.0f) };
+	//const auto projMat{ XMMatrixMultiply(XMMatrixPerspectiveFovLH(XM_PIDIV4, m_GfxSwapchain.AspectRatio(), 0.1f, 100.0f), XMMatrixScaling(1.0f, -1.0f, 1.0f)) };
+	const auto viewProjMat{ viewMat * projMat };
+
+	XMStoreFloat4x4(&ubo.m_ViewMat, viewMat);
+	XMStoreFloat4x4(&ubo.m_ViewInvMat, XMMatrixInverse(nullptr, viewMat));
+	XMStoreFloat4x4(&ubo.m_ProjMat, projMat);
+	XMStoreFloat4x4(&ubo.m_ProjInvMat, XMMatrixInverse(nullptr, projMat));
+	XMStoreFloat4x4(&ubo.m_ViewProjMat, viewProjMat);
+	XMStoreFloat4x4(&ubo.m_ViewProjMat, XMMatrixInverse(nullptr, viewProjMat));
 
 	memcpy(m_VkUniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }
 
 void GraphicsAPI::CreateDescriptorPool()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
 	std::array<VkDescriptorPoolSize, 2> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -531,7 +561,7 @@ void GraphicsAPI::CreateDescriptorPool()
 
 void GraphicsAPI::CreateDescriptorSets()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
 	const std::vector<VkDescriptorSetLayout> layouts(GfxSwapchain::sk_MaxFramesInFlight, m_VkDescriptorSetLayout);
 	VkDescriptorSetAllocateInfo allocInfo{};
@@ -549,7 +579,7 @@ void GraphicsAPI::CreateDescriptorSets()
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = m_VkUniformBuffers[i];
 		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(UBO);
+		bufferInfo.range = sizeof(PerFrameUBO);
 
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -580,7 +610,7 @@ void GraphicsAPI::CreateDescriptorSets()
 
 void GraphicsAPI::CreateTextureImage()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
 	int texWidth, texHeight, texChannels;
 	stbi_uc* pixels{ stbi_load("Resources/Textures/viking_room.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha) };
@@ -593,7 +623,7 @@ void GraphicsAPI::CreateTextureImage()
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	m_pGfxDevice->CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	m_GfxDevice.CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
 	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
@@ -602,10 +632,10 @@ void GraphicsAPI::CreateTextureImage()
 
 	stbi_image_free(pixels);
 
-	m_pGfxDevice->CreateImage(texWidth, texHeight, m_MipLevels, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelTextureImage, m_VkTestModelTextureImageMemory);
+	m_GfxDevice.CreateImage(texWidth, texHeight, m_MipLevels, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelTextureImage, m_VkTestModelTextureImageMemory);
 
-	m_pGfxDevice->TransitionImageLayout(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_MipLevels);
-	m_pGfxDevice->CopyBufferToImage(stagingBuffer, m_VkTestModelTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	m_GfxDevice.TransitionImageLayout(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_MipLevels);
+	m_GfxDevice.CopyBufferToImage(stagingBuffer, m_VkTestModelTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 	GenerateMipmaps(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_MipLevels);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -614,12 +644,12 @@ void GraphicsAPI::CreateTextureImage()
 
 void GraphicsAPI::CreateTextureImageView()
 {
-	m_VkTestModelTextureImageView = m_pGfxDevice->CreateImageView(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_MipLevels);
+	m_VkTestModelTextureImageView = m_GfxDevice.CreateImageView(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_MipLevels);
 }
 
 void GraphicsAPI::CreateTextureSampler()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_GfxDevice.GetDevice() };
 
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -629,7 +659,7 @@ void GraphicsAPI::CreateTextureSampler()
 	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	samplerInfo.anisotropyEnable = VK_TRUE;
-	samplerInfo.maxAnisotropy = m_pGfxDevice->GetPhysicalDeviceProperties().limits.maxSamplerAnisotropy; //TODO: Use anisotropic level setting
+	samplerInfo.maxAnisotropy = m_GfxDevice.GetPhysicalDeviceProperties().limits.maxSamplerAnisotropy; //TODO: Use anisotropic level setting
 	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;
 	samplerInfo.compareEnable = VK_FALSE;
@@ -644,12 +674,12 @@ void GraphicsAPI::CreateTextureSampler()
 
 void GraphicsAPI::GenerateMipmaps(VkImage image, VkFormat format, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) const
 {
-	const VkFormatProperties formatProperties{ m_pGfxDevice->GetFormatProperties(format) };
+	const VkFormatProperties formatProperties{ m_GfxDevice.GetFormatProperties(format) };
 
 	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
 		Logger::Get().LogError(L"Image format does not support linear blitting for mip generation.");
 
-	const VkCommandBuffer cmd{ m_pGfxDevice->BeginSingleTimeCmdBuffer() };
+	const VkCommandBuffer cmd{ m_GfxDevice.BeginSingleTimeCmdBuffer() };
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -712,7 +742,7 @@ void GraphicsAPI::GenerateMipmaps(VkImage image, VkFormat format, int32_t texWid
 
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-	m_pGfxDevice->EndSingleTimeCmdBuffer(cmd);
+	m_GfxDevice.EndSingleTimeCmdBuffer(cmd);
 }
 
 #endif

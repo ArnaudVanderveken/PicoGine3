@@ -521,7 +521,7 @@ void GraphicsAPI::UpdatePerFrameUBO() const
 
 	PerFrameUBO ubo{};
 
-	static XMFLOAT3 eyePos{ 0.0f, 1.0f, -3.0f };
+	static XMFLOAT3 eyePos{ 0.0f, 1.5f, -5.0f };
 	static XMFLOAT3 focusPos{ 0.0f, 0.0f, 0.0f };
 	static XMFLOAT3 upDir{ 0.0f, 1.0f, 0.0f };
 

@@ -290,8 +290,8 @@ void GraphicsAPI::CreateGraphicsPipeline()
 {
 	const auto& device{ m_GfxDevice.GetDevice() };
 
-	const auto vertShaderCode{ ReadShaderFile(L"Shaders/TestTrianglesTextured_VS.spv") };
-	const auto fragShaderCode{ ReadShaderFile(L"Shaders/TestTrianglesTextured_PS.spv") };
+	const auto vertShaderCode{ ReadShaderFile(L"Shaders/SimpleMeshTextured_VS.spv") };
+	const auto fragShaderCode{ ReadShaderFile(L"Shaders/SimpleMeshTextured_PS.spv") };
 
 	const VkShaderModule vertShaderModule{ CreateShaderModule(vertShaderCode) };
 	const VkShaderModule fragShaderModule{ CreateShaderModule(fragShaderCode) };
@@ -521,13 +521,12 @@ void GraphicsAPI::UpdatePerFrameUBO() const
 
 	PerFrameUBO ubo{};
 
-	static XMFLOAT3 eyePos{ 0.0f, 1.5f, -3.0f };
+	static XMFLOAT3 eyePos{ 0.0f, 1.0f, -3.0f };
 	static XMFLOAT3 focusPos{ 0.0f, 0.0f, 0.0f };
 	static XMFLOAT3 upDir{ 0.0f, 1.0f, 0.0f };
 
 	const auto viewMat{ XMMatrixLookAtLH(XMLoadFloat3(&eyePos), XMLoadFloat3(&focusPos), XMLoadFloat3(&upDir)) };
-	const auto projMat{ XMMatrixPerspectiveFovLH(XM_PIDIV4, m_GfxSwapchain.AspectRatio(), 0.1f, 100.0f) };
-	//const auto projMat{ XMMatrixMultiply(XMMatrixPerspectiveFovLH(XM_PIDIV4, m_GfxSwapchain.AspectRatio(), 0.1f, 100.0f), XMMatrixScaling(1.0f, -1.0f, 1.0f)) };
+	const auto projMat{ XMMatrixMultiply(XMMatrixPerspectiveFovLH(XM_PIDIV4, m_GfxSwapchain.AspectRatio(), 0.1f, 10.0f), XMMatrixScaling(1.0f, -1.0f, 1.0f)) };
 	const auto viewProjMat{ viewMat * projMat };
 
 	XMStoreFloat4x4(&ubo.m_ViewMat, viewMat);
@@ -535,7 +534,7 @@ void GraphicsAPI::UpdatePerFrameUBO() const
 	XMStoreFloat4x4(&ubo.m_ProjMat, projMat);
 	XMStoreFloat4x4(&ubo.m_ProjInvMat, XMMatrixInverse(nullptr, projMat));
 	XMStoreFloat4x4(&ubo.m_ViewProjMat, viewProjMat);
-	XMStoreFloat4x4(&ubo.m_ViewProjMat, XMMatrixInverse(nullptr, viewProjMat));
+	XMStoreFloat4x4(&ubo.m_ViewProjInvMat, XMMatrixInverse(nullptr, viewProjMat));
 
 	memcpy(m_VkUniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
 }

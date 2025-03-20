@@ -32,7 +32,7 @@ public:
 	[[nodiscard]] GraphicsAPI* GetGraphicsAPI() const;
 
 	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform);
-	void DrawFrame() const;
+	void DrawFrame();
 
 private:
 	bool m_IsInitialized{};

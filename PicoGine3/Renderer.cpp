@@ -23,7 +23,7 @@ void Renderer::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4
 	m_RenderEntries.emplace_back(RenderEntry{ meshDataID, materialID, transform });
 }
 
-void Renderer::DrawFrame() const
+void Renderer::DrawFrame()
 {
 	// For now, brute force rendering, no batching no instancing, simply rendering all models in order.
 	if (m_pGraphicsAPI->IsInitialized())
@@ -37,4 +37,6 @@ void Renderer::DrawFrame() const
 	}
 	else
 		Logger::Get().LogWarning(L"GraphicsAPI is uninitialized. Ignoring call");
+
+	m_RenderEntries.clear();
 }

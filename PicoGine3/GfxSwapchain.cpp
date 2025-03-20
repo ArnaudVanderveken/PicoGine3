@@ -221,7 +221,7 @@ void GfxSwapchain::CreateSwapchain()
 	if (swapChainSupport.m_Capabilities.maxImageCount > 0 && imageCount > swapChainSupport.m_Capabilities.maxImageCount)
 		imageCount = swapChainSupport.m_Capabilities.maxImageCount;
 
-	VkSwapchainKHR oldSwapchain{ m_VkSwapChain };
+	const VkSwapchainKHR oldSwapchain{ m_VkSwapChain };
 
 	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;

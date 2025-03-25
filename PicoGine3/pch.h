@@ -33,6 +33,9 @@ using namespace DirectX;
 
 /* --- 3RD PARTY --- */
 #include <entt.hpp>
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_vulkan.h"
 
 /* --- PROJECT FILES --- */
 #include "Logger.h"

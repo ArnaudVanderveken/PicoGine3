@@ -243,6 +243,15 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClCompile Include="GfxDevice.cpp" />
     <ClCompile Include="GfxSwapchain.cpp" />
     <ClCompile Include="GraphicsAPI.cpp" />
+    <ClCompile Include="GUI.cpp" />
+    <ClCompile Include="imgui.cpp" />
+    <ClCompile Include="imgui_demo.cpp" />
+    <ClCompile Include="imgui_draw.cpp" />
+    <ClCompile Include="imgui_impl_vulkan.cpp" />
+    <ClCompile Include="imgui_impl_win32.cpp" />
+    <ClCompile Include="imgui_stdlib.cpp" />
+    <ClCompile Include="imgui_tables.cpp" />
+    <ClCompile Include="imgui_widgets.cpp" />
     <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="Logger.cpp" />
     <ClCompile Include="main.cpp" />
@@ -268,7 +277,17 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="GfxDevice.h" />
     <ClInclude Include="GfxSwapchain.h" />
     <ClInclude Include="GraphicsAPI.h" />
+    <ClInclude Include="GUI.h" />
     <ClInclude Include="Helpers.h" />
+    <ClInclude Include="imconfig.h" />
+    <ClInclude Include="imgui.h" />
+    <ClInclude Include="imgui_impl_vulkan.h" />
+    <ClInclude Include="imgui_impl_win32.h" />
+    <ClInclude Include="imgui_internal.h" />
+    <ClInclude Include="imgui_stdlib.h" />
+    <ClInclude Include="imstb_rectpack.h" />
+    <ClInclude Include="imstb_textedit.h" />
+    <ClInclude Include="imstb_truetype.h" />
     <ClInclude Include="InputManager.h" />
     <ClInclude Include="Keycodes.h" />
     <ClInclude Include="Logger.h" />
@@ -286,6 +305,12 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="Vertex.h" />
     <ClInclude Include="WindowFullscreenState.h" />
     <ClInclude Include="WindowManager.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="imgui.natstepfilter" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="imgui.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -55,7 +55,7 @@ public:
 	static constexpr uint32_t sk_MaxFramesInFlight{ 2 };
 
 private:
-	const GfxDevice& m_pGfxDevice;
+	const GfxDevice& m_GfxDevice;
 
 	VkFormat m_VkSwapChainColorFormat;
 	VkFormat m_VkSwapChainDepthFormat;

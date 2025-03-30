@@ -1,7 +1,6 @@
 #ifndef RESOURCEDATA_H
 #define RESOURCEDATA_H
 
-#include "Vertex.h"
 
 struct MeshData
 {

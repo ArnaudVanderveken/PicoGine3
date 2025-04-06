@@ -75,6 +75,61 @@ void GfxBuffer::Unmap()
 	}
 }
 
+size_t GfxBuffer::GetBufferSize() const
+{
+	return m_BufferSize;
+}
+
+void GfxBuffer::WriteToBuffer(const void* data, size_t size, size_t offset) const
+{
+	assert(m_pMappedMemory && L"Cannot write to unmapped buffer!");
+
+	if (size == ~0ULL)
+		memcpy(m_pMappedMemory, data, m_BufferSize);
+	
+	else
+	{
+		char* memOffset = static_cast<char*>(m_pMappedMemory);
+		memOffset += offset;
+		memcpy(memOffset, data, size);
+	}
+}
+
+void GfxBuffer::Flush(size_t size, size_t offset) const
+{
+	VkMappedMemoryRange mappedRange{};
+	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	mappedRange.memory = m_BufferMemory;
+	mappedRange.offset = offset;
+	mappedRange.size = size;
+	HandleVkResult(vkFlushMappedMemoryRanges(m_GfxDevice.GetDevice(), 1, &mappedRange));
+}
+
+void GfxBuffer::Invalidate(size_t size, size_t offset) const
+{
+	VkMappedMemoryRange mappedRange{};
+	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	mappedRange.memory = m_BufferMemory;
+	mappedRange.offset = offset;
+	mappedRange.size = size;
+	HandleVkResult(vkInvalidateMappedMemoryRanges(m_GfxDevice.GetDevice(), 1, &mappedRange));
+}
+
+void GfxBuffer::WriteToIndex(void* data, int index) const
+{
+	WriteToBuffer(data, m_ElementStride, index * m_AlignmentSize);
+}
+
+void GfxBuffer::FlushIndex(int index) const
+{
+	Flush(m_AlignmentSize, index * m_AlignmentSize);
+}
+
+void GfxBuffer::InvalidateIndex(int index) const
+{
+	Invalidate(m_AlignmentSize, index * m_AlignmentSize);
+}
+
 VkBuffer GfxBuffer::GetBuffer() const
 {
 	return m_Buffer;

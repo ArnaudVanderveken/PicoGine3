@@ -6,6 +6,7 @@
 #include <assimp/postprocess.h>
 
 #include "Renderer.h"
+#include "Vertex.h"
 
 
 uint32_t ResourceManager::MeshManager::Load(const std::wstring& filename)
@@ -54,14 +55,9 @@ uint32_t ResourceManager::MeshManager::Load(const std::wstring& filename)
 
 		m_LoadedFiles[filename] = static_cast<uint32_t>(m_MeshData.size());
 
-		const auto graphicsAPI{ Renderer::Get().GetGraphicsAPI() };
+		const auto& device{ Renderer::Get().GetGraphicsAPI()->GetGfxDevice() };
 
-		MeshData newMeshData{};
-		newMeshData.m_IndexCount = static_cast<uint32_t>(indices.size());
-		graphicsAPI->CreateVertexBuffer(vertices.data(), sizeof(Vertex3D) * vertices.size(), newMeshData.m_VertexBuffer, newMeshData.m_VertexBufferMemory);
-		graphicsAPI->CreateIndexBuffer(indices.data(), sizeof(uint32_t) * indices.size(), newMeshData.m_IndexBuffer, newMeshData.m_IndexBufferMemory);
-
-		m_MeshData.emplace_back(newMeshData);
+		m_MeshData.emplace_back(MeshData{ device, vertices, indices });
 	}
 
 	return m_LoadedFiles[filename];
@@ -75,13 +71,13 @@ const MeshData& ResourceManager::MeshManager::GetMeshData(uint32_t id) const
 
 void ResourceManager::MeshManager::ReleaseGPUBuffers()
 {
-	const auto graphicsAPI{ Renderer::Get().GetGraphicsAPI() };
+	/*const auto graphicsAPI{ Renderer::Get().GetGraphicsAPI() };
 
 	for (const auto& meshData : m_MeshData)
 	{
 		graphicsAPI->ReleaseBuffer(meshData.m_VertexBuffer, meshData.m_VertexBufferMemory);
 		graphicsAPI->ReleaseBuffer(meshData.m_IndexBuffer, meshData.m_IndexBufferMemory);
-	}
+	}*/
 	m_MeshData.clear();
 }
 

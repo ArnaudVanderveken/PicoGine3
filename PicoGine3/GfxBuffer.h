@@ -18,7 +18,15 @@ public:
 	void Map(size_t size = ~0ULL, size_t offset = 0);
 	void Unmap();
 
+	[[nodiscard]] size_t GetBufferSize() const;
 
+	void WriteToBuffer(const void* data, size_t size = ~0ULL, size_t offset = 0) const;
+	void Flush(size_t size = ~0ULL, size_t offset = 0) const;
+	void Invalidate(size_t size = ~0ULL, size_t offset = 0) const;
+
+	void WriteToIndex(void* data, int index) const;
+	void FlushIndex(int index) const;
+	void InvalidateIndex(int index) const;
 
 #if defined(_DX12)
 	[[nodiscard]] void* GetBuffer() const;

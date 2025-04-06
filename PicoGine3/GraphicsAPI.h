@@ -1,6 +1,7 @@
 #ifndef GRAPHICSAPI_H
 #define GRAPHICSAPI_H
 
+#include "GfxBuffer.h"
 #include "GfxDevice.h"
 #include "GfxSwapchain.h"
 
@@ -62,9 +63,8 @@ public:
 	GraphicsAPI& operator=(GraphicsAPI&&) noexcept = delete;
 
 	[[nodiscard]] bool IsInitialized() const;
+	[[nodiscard]] const GfxDevice& GetGfxDevice() const;
 
-	void CreateVertexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const;
-	void CreateIndexBuffer(const void* pBufferData, VkDeviceSize bufferSize, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const;
 	void ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const;
 
 	void BeginFrame();

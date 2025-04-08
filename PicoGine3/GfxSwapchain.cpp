@@ -8,8 +8,8 @@
 
 #elif defined(_VK)
 
-GfxSwapchain::GfxSwapchain(const GfxDevice& device) :
-	m_GfxDevice{device}
+GfxSwapchain::GfxSwapchain(GfxDevice* device) :
+	m_pGfxDevice{ device }
 {
 	CreateSwapchain();
 	CreateSwapchainImageViews();
@@ -21,7 +21,7 @@ GfxSwapchain::GfxSwapchain(const GfxDevice& device) :
 
 GfxSwapchain::~GfxSwapchain()
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
@@ -89,12 +89,12 @@ uint32_t GfxSwapchain::GetCurrentFrameIndex() const
 
 VkFormat GfxSwapchain::FindDepthFormat() const
 {
-	return m_GfxDevice.FindSupportedFormat({ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+	return m_pGfxDevice->FindSupportedFormat({ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
 void GfxSwapchain::RecreateSwapchain()
 {
-	vkDeviceWaitIdle(m_GfxDevice.GetDevice());
+	vkDeviceWaitIdle(m_pGfxDevice->GetDevice());
 
 	CleanupSwapchain();
 
@@ -106,7 +106,7 @@ void GfxSwapchain::RecreateSwapchain()
 
 VkResult GfxSwapchain::AcquireNextImage()
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	vkWaitForFences(device, 1, &m_VkInFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 	return vkAcquireNextImageKHR(device, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &m_CurrentFrameSwapchainImageIndex);
@@ -114,7 +114,7 @@ VkResult GfxSwapchain::AcquireNextImage()
 
 void GfxSwapchain::ResetFrameInFlightFence() const
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	vkResetFences(device, 1, &m_VkInFlightFences[m_CurrentFrame]);
 }
@@ -146,7 +146,7 @@ VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, u
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	HandleVkResult(vkQueueSubmit(m_GfxDevice.GetGraphicsQueue(), 1, &submitInfo, m_VkInFlightFences[m_CurrentFrame]));
+	HandleVkResult(vkQueueSubmit(m_pGfxDevice->GetGraphicsQueue(), 1, &submitInfo, m_VkInFlightFences[m_CurrentFrame]));
 
 	const VkSwapchainKHR swapChains[]
 	{
@@ -164,7 +164,7 @@ VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, u
 
 	m_CurrentFrame = (m_CurrentFrame + 1) % sk_MaxFramesInFlight;
 
-	return vkQueuePresentKHR(m_GfxDevice.GetPresentQueue(), &presentInfo);
+	return vkQueuePresentKHR(m_pGfxDevice->GetPresentQueue(), &presentInfo);
 }
 
 VkSurfaceFormatKHR GfxSwapchain::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
@@ -210,11 +210,11 @@ VkExtent2D GfxSwapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabi
 
 void GfxSwapchain::CreateSwapchain()
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
-	const auto& queueFamilyIndices{ m_GfxDevice.GetQueueFamilyIndices() };
-	const auto& surface{ m_GfxDevice.GetSurface() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& queueFamilyIndices{ m_pGfxDevice->GetQueueFamilyIndices() };
+	const auto& surface{ m_pGfxDevice->GetSurface() };
 
-	const SwapChainSupportDetails swapChainSupport{ m_GfxDevice.SwapChainSupport()};
+	const SwapChainSupportDetails swapChainSupport{ m_pGfxDevice->SwapChainSupport()};
 
 	const VkSurfaceFormatKHR surfaceFormat{ ChooseSwapSurfaceFormat(swapChainSupport.m_Formats) };
 	const VkPresentModeKHR presentMode{ ChooseSwapPresentMode(swapChainSupport.m_PresentModes) };
@@ -281,7 +281,7 @@ void GfxSwapchain::CreateSwapchainImageViews()
 	m_VkSwapChainImageViews.resize(m_VkSwapChainImages.size());
 
 	for (size_t i{}; i < m_VkSwapChainImages.size(); ++i)
-		m_VkSwapChainImageViews[i] = m_GfxDevice.CreateImageView(m_VkSwapChainImages[i], m_VkSwapChainColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+		m_VkSwapChainImageViews[i] = m_pGfxDevice->CreateImageView(m_VkSwapChainImages[i], m_VkSwapChainColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void GfxSwapchain::CreateDepthResources()
@@ -294,14 +294,14 @@ void GfxSwapchain::CreateDepthResources()
 
 	for (size_t i{}; i < m_VkSwapChainImages.size(); ++i)
 	{
-		m_GfxDevice.CreateImage(m_VkSwapChainExtent.width, m_VkSwapChainExtent.height, 1, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkDepthImages[i], m_VkDepthImagesMemory[i]);
-		m_VkDepthImageViews[i] = m_GfxDevice.CreateImageView(m_VkDepthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+		m_pGfxDevice->CreateImage(m_VkSwapChainExtent.width, m_VkSwapChainExtent.height, 1, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkDepthImages[i], m_VkDepthImagesMemory[i]);
+		m_VkDepthImageViews[i] = m_pGfxDevice->CreateImageView(m_VkDepthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 	}
 }
 
 void GfxSwapchain::CreateFrameBuffers()
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	m_VkFrameBuffers.resize(m_VkSwapChainImageViews.size());
 
@@ -327,7 +327,7 @@ void GfxSwapchain::CreateFrameBuffers()
 
 void GfxSwapchain::CleanupSwapchain() const
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	for (const auto framebuffer : m_VkFrameBuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -345,7 +345,7 @@ void GfxSwapchain::CleanupSwapchain() const
 
 void GfxSwapchain::CreateRenderPass()
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	VkAttachmentDescription colorAttachment{};
 	colorAttachment.format = m_VkSwapChainColorFormat;
@@ -404,7 +404,7 @@ void GfxSwapchain::CreateRenderPass()
 
 void GfxSwapchain::CreateSyncObjects()
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	m_VkImageAvailableSemaphores.resize(sk_MaxFramesInFlight);
 	m_VkRenderFinishedSemaphores.resize(sk_MaxFramesInFlight);

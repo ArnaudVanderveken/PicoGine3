@@ -7,13 +7,13 @@
 class GfxBuffer final
 {
 public:
-	explicit GfxBuffer(const GfxDevice& device, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset = 0);
+	explicit GfxBuffer(GfxDevice* pDevice, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset = 0);
 	~GfxBuffer();
 
-	GfxBuffer(const GfxBuffer&) noexcept = delete;
-	GfxBuffer& operator=(const GfxBuffer&) noexcept = delete;
-	GfxBuffer(GfxBuffer&&) noexcept = delete;
-	GfxBuffer& operator=(GfxBuffer&&) noexcept = delete;
+	GfxBuffer(const GfxBuffer& other) noexcept = delete;
+	GfxBuffer& operator=(const GfxBuffer& other) noexcept = delete;
+	GfxBuffer(GfxBuffer&& other) noexcept = delete;
+	GfxBuffer& operator=(GfxBuffer&& other) noexcept = delete;
 
 	void Map(size_t size = ~0ULL, size_t offset = 0);
 	void Unmap();
@@ -24,7 +24,7 @@ public:
 	void Flush(size_t size = ~0ULL, size_t offset = 0) const;
 	void Invalidate(size_t size = ~0ULL, size_t offset = 0) const;
 
-	void WriteToIndex(void* data, int index) const;
+	void WriteToIndex(const void* data, int index) const;
 	void FlushIndex(int index) const;
 	void InvalidateIndex(int index) const;
 
@@ -39,13 +39,13 @@ private:
 
 #elif defined(_VK)
 
-	VkBuffer m_Buffer{};
-	VkDeviceMemory m_BufferMemory{};
-	void* m_pMappedMemory{};
+	VkBuffer m_Buffer;
+	VkDeviceMemory m_BufferMemory;
+	void* m_pMappedMemory;
 
 #endif
 
-	const GfxDevice& m_GfxDevice;
+	GfxDevice* m_pGfxDevice;
 
 	size_t m_ElementStride;
 	size_t m_ElementCount;

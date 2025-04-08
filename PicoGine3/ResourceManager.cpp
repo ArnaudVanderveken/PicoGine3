@@ -75,8 +75,8 @@ void ResourceManager::MeshManager::ReleaseGPUBuffers()
 
 	for (const auto& meshData : m_MeshData)
 	{
-		graphicsAPI->ReleaseBuffer(meshData.m_VertexBuffer, meshData.m_VertexBufferMemory);
-		graphicsAPI->ReleaseBuffer(meshData.m_IndexBuffer, meshData.m_IndexBufferMemory);
+		graphicsAPI->ReleaseBuffer(meshData.m_pVertexBuffer, meshData.m_VertexBufferMemory);
+		graphicsAPI->ReleaseBuffer(meshData.m_pIndexBuffer, meshData.m_IndexBufferMemory);
 	}*/
 	m_MeshData.clear();
 }

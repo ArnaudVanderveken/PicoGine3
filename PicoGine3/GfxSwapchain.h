@@ -26,7 +26,7 @@ private:
 class GfxSwapchain final
 {
 public:
-	explicit GfxSwapchain(const GfxDevice& device);
+	explicit GfxSwapchain(GfxDevice* device);
 	~GfxSwapchain();
 
 	GfxSwapchain(const GfxSwapchain&) noexcept = delete;
@@ -55,7 +55,7 @@ public:
 	static constexpr uint32_t sk_MaxFramesInFlight{ 2 };
 
 private:
-	const GfxDevice& m_GfxDevice;
+	GfxDevice* m_pGfxDevice;
 
 	VkFormat m_VkSwapChainColorFormat;
 	VkFormat m_VkSwapChainDepthFormat;

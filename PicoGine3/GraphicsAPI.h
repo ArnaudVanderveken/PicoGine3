@@ -63,7 +63,7 @@ public:
 	GraphicsAPI& operator=(GraphicsAPI&&) noexcept = delete;
 
 	[[nodiscard]] bool IsInitialized() const;
-	[[nodiscard]] const GfxDevice& GetGfxDevice() const;
+	[[nodiscard]] GfxDevice* GetGfxDevice() const;
 
 	void ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const;
 
@@ -74,7 +74,7 @@ public:
 private:
 	bool m_IsInitialized;
 
-	GfxDevice m_GfxDevice;
+	std::unique_ptr<GfxDevice> m_pGfxDevice;
 	GfxSwapchain m_GfxSwapchain;
 	
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
@@ -82,10 +82,8 @@ private:
 	VkPipeline m_VkGraphicsPipeline;
 	
 	std::vector<VkCommandBuffer> m_VkCommandBuffers;
-	
-	std::vector<VkBuffer> m_VkUniformBuffers;
-	std::vector<VkDeviceMemory> m_VkUniformBuffersMemory;
-	std::vector<void*> m_VkUniformBuffersMapped;
+
+	std::vector<std::unique_ptr<GfxBuffer>> m_PerFrameUBO;
 	VkDescriptorPool m_VkDescriptorPool;
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
 	uint32_t m_MipLevels;

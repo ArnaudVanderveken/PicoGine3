@@ -3,8 +3,8 @@
 
 #if defined(_DX12)
 
-GfxBuffer::GfxBuffer(const GfxDevice& device, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset) :
-	m_GfxDevice{ device },
+GfxBuffer::GfxBuffer(GfxDevice* pDevice, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset) :
+	m_pGfxDevice{ pDevice },
 	m_ElementStride{ elementStride },
 	m_ElementCount{ elementCount },
 	m_AlignmentSize{ GetAlignment(elementStride, minAlignmentOffset) },
@@ -14,7 +14,7 @@ GfxBuffer::GfxBuffer(const GfxDevice& device, size_t elementStride, size_t eleme
 {
 	m_AlignmentSize = GetAlignment(elementStride, minAlignmentOffset);
 	m_BufferSize = elementCount * m_AlignmentSize;
-	//m_GfxDevice.CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
+	//m_pGfxDevice.CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
 }
 
 GfxBuffer::~GfxBuffer()
@@ -40,8 +40,9 @@ void* GetBuffer()
 
 #elif defined(_VK)
 
-GfxBuffer::GfxBuffer(const GfxDevice& device, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset) :
-	m_GfxDevice{ device },
+GfxBuffer::GfxBuffer(GfxDevice* pDevice, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset) :
+	m_pMappedMemory{ nullptr },
+	m_pGfxDevice{ pDevice },
 	m_ElementStride{ elementStride },
 	m_ElementCount{ elementCount },
 	m_UsageFlags{ usageFlags },
@@ -49,12 +50,12 @@ GfxBuffer::GfxBuffer(const GfxDevice& device, size_t elementStride, size_t eleme
 {
 	m_AlignmentSize = GetAlignment(elementStride, minAlignmentOffset);
 	m_BufferSize = elementCount * m_AlignmentSize;
-	m_GfxDevice.CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
+	m_pGfxDevice->CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
 }
 
 GfxBuffer::~GfxBuffer()
 {
-	const auto& device{ m_GfxDevice.GetDevice() };
+	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	Unmap();
 	vkDestroyBuffer(device, m_Buffer, nullptr);
@@ -63,14 +64,15 @@ GfxBuffer::~GfxBuffer()
 
 void GfxBuffer::Map(size_t size, size_t offset)
 {
-	HandleVkResult(vkMapMemory(m_GfxDevice.GetDevice(), m_BufferMemory, offset, size, 0, &m_pMappedMemory));
+	const size_t mappedSize{ std::min(size, m_BufferSize) };
+	HandleVkResult(vkMapMemory(m_pGfxDevice->GetDevice(), m_BufferMemory, offset, mappedSize, 0, &m_pMappedMemory));
 }
 
 void GfxBuffer::Unmap()
 {
 	if (m_pMappedMemory)
 	{
-		vkUnmapMemory(m_GfxDevice.GetDevice(), m_BufferMemory);
+		vkUnmapMemory(m_pGfxDevice->GetDevice(), m_BufferMemory);
 		m_pMappedMemory = nullptr;
 	}
 }
@@ -102,7 +104,7 @@ void GfxBuffer::Flush(size_t size, size_t offset) const
 	mappedRange.memory = m_BufferMemory;
 	mappedRange.offset = offset;
 	mappedRange.size = size;
-	HandleVkResult(vkFlushMappedMemoryRanges(m_GfxDevice.GetDevice(), 1, &mappedRange));
+	HandleVkResult(vkFlushMappedMemoryRanges(m_pGfxDevice->GetDevice(), 1, &mappedRange));
 }
 
 void GfxBuffer::Invalidate(size_t size, size_t offset) const
@@ -112,10 +114,10 @@ void GfxBuffer::Invalidate(size_t size, size_t offset) const
 	mappedRange.memory = m_BufferMemory;
 	mappedRange.offset = offset;
 	mappedRange.size = size;
-	HandleVkResult(vkInvalidateMappedMemoryRanges(m_GfxDevice.GetDevice(), 1, &mappedRange));
+	HandleVkResult(vkInvalidateMappedMemoryRanges(m_pGfxDevice->GetDevice(), 1, &mappedRange));
 }
 
-void GfxBuffer::WriteToIndex(void* data, int index) const
+void GfxBuffer::WriteToIndex(const void* data, int index) const
 {
 	WriteToBuffer(data, m_ElementStride, index * m_AlignmentSize);
 }

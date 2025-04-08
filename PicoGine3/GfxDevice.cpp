@@ -366,10 +366,14 @@ void GfxDevice::CreateVkInstance()
 
 #endif //defined(_DEBUG)
 
+	VLDDisable(); //VLD generates false positive leaks from this VK call
+
 	uint32_t extensionCount{};
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
 	std::vector<VkExtensionProperties> extensions(extensionCount);
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+
+	VLDEnable();
 
 	std::vector<const char*> instanceExtensions;
 

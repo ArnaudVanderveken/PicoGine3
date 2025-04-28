@@ -26,12 +26,12 @@ public:
 	Logger(Logger&&) noexcept = delete;
 	Logger& operator=(Logger&&) noexcept = delete;
 
-	void LogInfo(const std::wstring& logString, const std::source_location& sourceLocation = std::source_location::current());
-	void LogDebug(const std::wstring& logString, const std::source_location& sourceLocation = std::source_location::current());
-	void LogWarning(const std::wstring& logString, const std::source_location& sourceLocation = std::source_location::current());
-	void LogError(const std::wstring& logString, const std::source_location& sourceLocation = std::source_location::current());
-	void LogError(HRESULT hres, const std::source_location& sourceLocation = std::source_location::current());
-	void LogTodo(const std::wstring& logString, const std::source_location& sourceLocation = std::source_location::current());
+	void LogInfo(const std::wstring& logString, bool detailedOutput = true, const std::source_location& sourceLocation = std::source_location::current());
+	void LogDebug(const std::wstring& logString, bool detailedOutput = true, const std::source_location& sourceLocation = std::source_location::current());
+	void LogWarning(const std::wstring& logString, bool detailedOutput = true, const std::source_location& sourceLocation = std::source_location::current());
+	void LogError(const std::wstring& logString, bool detailedOutput = true, const std::source_location& sourceLocation = std::source_location::current());
+	void LogError(HRESULT hres, bool detailedOutput = true, const std::source_location& sourceLocation = std::source_location::current());
+	void LogTodo(const std::wstring& logString, bool detailedOutput = true, const std::source_location& sourceLocation = std::source_location::current());
 
 protected:
 	friend Singleton<Logger>;
@@ -39,11 +39,12 @@ protected:
 
 private:
 	inline static const std::wstring k_LogFileName{ L"PicoGine3_Log.txt" };
+	inline static constexpr bool k_OutputToConsole{ true };
 	inline static const std::wstring k_LevelsToString[]{ L"INFO", L"DEBUG", L"WARNING", L"ERROR", L"TODO" };
 
 	std::wofstream m_OutputStream{};
 
-	void ProcessLog(LogLevel level, const std::wstring& logString, const std::source_location& sourceLocation);
+	void ProcessLog(LogLevel level, const std::wstring& logString, bool detailedOutput = true, const std::source_location& sourceLocation);
 
 };
 

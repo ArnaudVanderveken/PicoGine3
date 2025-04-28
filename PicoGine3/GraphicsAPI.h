@@ -34,7 +34,7 @@ private:
 
 #elif defined(_VK)
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
 
 struct PerFrameUBO
 {

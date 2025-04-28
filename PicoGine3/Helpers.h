@@ -24,7 +24,7 @@ inline void HandleNonHrWin32(BOOL result)
 }
 
 #if defined(_VK)
-#include <vulkan/vulkan.h>
+#include <Volk/volk.h>
 #include <vulkan/vk_enum_string_helper.h>
 inline void HandleVkResult(VkResult result)
 {

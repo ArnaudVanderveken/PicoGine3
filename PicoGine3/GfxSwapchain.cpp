@@ -211,7 +211,7 @@ VkExtent2D GfxSwapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabi
 void GfxSwapchain::CreateSwapchain()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
-	const auto& queueFamilyIndices{ m_pGfxDevice->GetQueueFamilyIndices() };
+	const auto& queueFamilyIndices{ m_pGfxDevice->GetDeviceQueueInfo() };
 	const auto& surface{ m_pGfxDevice->GetSurface() };
 
 	const SwapChainSupportDetails swapChainSupport{ m_pGfxDevice->SwapChainSupport()};

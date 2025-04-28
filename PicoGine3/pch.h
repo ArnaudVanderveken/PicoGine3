@@ -35,7 +35,10 @@ using namespace DirectX;
 #include <entt.hpp>
 #include "imgui.h"
 #include "imgui_impl_win32.h"
+#if defined(_VK)
+#define IMGUI_IMPL_VULKAN_USE_VOLK
 #include "imgui_impl_vulkan.h"
+#endif //defined(_VK)
 
 /* --- PROJECT FILES --- */
 #include "Logger.h"

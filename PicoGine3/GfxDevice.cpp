@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "GfxDevice.h"
 
+#include <format>
+
 #include "CoreSystems.h"
 #include "WindowManager.h"
 
@@ -22,8 +24,6 @@ GfxDevice::GfxDevice()
 
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
-	vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.m_GraphicsFamily.value(), 0, &m_VkGraphicsQueue);
-	vkGetDeviceQueue(m_VkDevice, m_QueueFamilyIndices.m_PresentFamily.value(), 0, &m_VkPresentQueue);
 	CreateCommandPool();
 }
 
@@ -54,7 +54,12 @@ VkDevice GfxDevice::GetDevice() const
 
 VkPhysicalDeviceProperties GfxDevice::GetPhysicalDeviceProperties() const
 {
-	return m_VkPhysicalDeviceProperties;
+	return m_VkPhysicalDeviceProperties2.properties;
+}
+
+VkPhysicalDeviceProperties2 GfxDevice::GetPhysicalDeviceProperties2() const
+{
+	return m_VkPhysicalDeviceProperties2;
 }
 
 VkSurfaceKHR GfxDevice::GetSurface() const
@@ -64,17 +69,22 @@ VkSurfaceKHR GfxDevice::GetSurface() const
 
 VkQueue GfxDevice::GetGraphicsQueue() const
 {
-	return m_VkGraphicsQueue;
+	return m_DeviceQueueInfo.m_GraphicsQueue;
 }
 
-VkQueue GfxDevice::GetPresentQueue() const
+//VkQueue GfxDevice::GetPresentQueue() const
+//{
+//	return m_DeviceQueueInfo.m_PresentQueue;
+//}
+
+VkQueue GfxDevice::GetComputeQueue() const
 {
-	return m_VkPresentQueue;
+	return m_DeviceQueueInfo.m_ComputeQueue;
 }
 
-QueueFamilyIndices GfxDevice::GetQueueFamilyIndices() const
+DeviceQueueInfo GfxDevice::GetDeviceQueueInfo() const
 {
-	return m_QueueFamilyIndices;
+	return m_DeviceQueueInfo;
 }
 
 SwapChainSupportDetails GfxDevice::SwapChainSupport() const
@@ -148,8 +158,8 @@ void GfxDevice::EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 
-	vkQueueSubmit(m_VkGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(m_VkGraphicsQueue);
+	vkQueueSubmit(m_DeviceQueueInfo.m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(m_DeviceQueueInfo.m_GraphicsQueue);
 
 	vkFreeCommandBuffers(m_VkDevice, m_VkCommandPool, 1, &commandBuffer);
 }
@@ -328,8 +338,155 @@ void GfxDevice::TransitionImageLayout(VkImage image, VkFormat format, VkImageLay
 	EndSingleTimeCmdBuffer(cmd);
 }
 
+bool GfxDevice::HasExtension(const char* ext, const std::vector<VkExtensionProperties>& extensionProperties)
+{
+	for (const VkExtensionProperties& p : extensionProperties)
+	{
+		if (strcmp(ext, p.extensionName) == 0)
+			return true;
+	}
+	return false;
+}
+
+bool GfxDevice::IsHostVisibleSingleHeapMemory(VkPhysicalDevice physicalDevice)
+{
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+	if (memProperties.memoryHeapCount != 1)
+		return false;
+
+	constexpr uint32_t flag{ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
+
+	for (uint32_t i{}; i < memProperties.memoryTypeCount; ++i)
+		if ((memProperties.memoryTypes[i].propertyFlags & flag) == flag)
+			return true;
+
+	return false;
+}
+
+void GfxDevice::GetDeviceExtensionProps(VkPhysicalDevice physicalDevice, std::vector<VkExtensionProperties>& extensionProperties, const char* validationLayer)
+{
+	uint32_t numExtensions{};
+	vkEnumerateDeviceExtensionProperties(physicalDevice, validationLayer, &numExtensions, nullptr);
+	std::vector<VkExtensionProperties> newProperties(numExtensions);
+	vkEnumerateDeviceExtensionProperties(physicalDevice, validationLayer, &numExtensions, newProperties.data());
+	extensionProperties.insert(extensionProperties.end(), newProperties.begin(), newProperties.end());
+}
+
 void GfxDevice::CreateVkInstance()
 {
+	auto& logger{ Logger::Get() };
+
+#if defined(_DEBUG)
+	uint32_t layerCount;
+	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+	std::vector<VkLayerProperties> availableLayers(layerCount);
+	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+	for (const char* layerName : m_DefaultValidationLayers)
+	{
+		bool layerFound{};
+		for (const auto& layerProperties : availableLayers)
+		{
+			if (strcmp(layerName, layerProperties.layerName) == 0)
+			{
+				m_KhronosValidationVersion = layerProperties.specVersion;
+				layerFound = true;
+				break;
+			}
+		}
+		if (!layerFound)
+			logger.LogError(std::wstring(L"Validation layer not found: ") + StrUtils::cstr2stdwstr(layerName));
+	}
+
+#endif //defined(_DEBUG)
+
+	VLDDisable(); //VLD generates false positive leaks from this VK call
+
+	uint32_t extensionCount{};
+	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+	std::vector<VkExtensionProperties> extensionProperties(extensionCount);
+	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensionProperties.data());
+
+	VLDEnable();
+
+#if defined(_DEBUG)
+	for (const char* layer : m_DefaultValidationLayers)
+	{
+		uint32_t count{};
+		HandleVkResult(vkEnumerateInstanceExtensionProperties(layer, &count, nullptr));
+		if (count > 0)
+		{
+			const size_t currentSize{ extensionProperties.size() };
+			extensionProperties.resize(currentSize + count);
+			HandleVkResult(vkEnumerateInstanceExtensionProperties(layer, &count, extensionProperties.data() + currentSize));
+		}
+	}
+#endif//defined(_DEBUG)
+
+	std::vector<const char*> instanceExtensionNames
+	{
+		VK_KHR_SURFACE_EXTENSION_NAME,
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+	};
+
+	if (HasExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, extensionProperties))
+		instanceExtensionNames.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+#if defined(_DEBUG)
+
+	instanceExtensionNames.emplace_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
+
+#endif//defined(_DEBUG)
+
+	if (HasExtension(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME, extensionProperties))
+	{
+		m_HasEXTSwapchainColorspace = true;
+		instanceExtensionNames.emplace_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
+	}
+
+#if defined(_DEBUG)
+
+	const std::vector<VkValidationFeatureEnableEXT> validationFeaturesEnabled
+	{
+		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+	};
+
+	const VkValidationFeaturesEXT validationFeatures
+	{
+		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+		.pNext = nullptr,
+		.enabledValidationFeatureCount = static_cast<uint32_t>(validationFeaturesEnabled.size()),
+		.pEnabledValidationFeatures = validationFeaturesEnabled.data()
+	};
+
+#if defined(VK_EXT_layer_settings) && VK_EXT_layer_settings
+
+	constexpr VkBool32 gpuavDescriptorChecks{ VK_FALSE }; // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/8688
+	constexpr VkBool32 gpuavIndirectDrawsBuffers{ VK_FALSE }; // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/8579
+	constexpr VkBool32 gpuavPostProcessDescriptorIndexing{ VK_FALSE }; // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/9222
+
+	const std::vector<VkLayerSettingEXT> settings
+	{
+		{m_DefaultValidationLayers[0], "gpuav_descriptor_checks", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &gpuavDescriptorChecks},
+		{m_DefaultValidationLayers[0], "gpuav_indirect_draws_buffers", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &gpuavIndirectDrawsBuffers},
+		{m_DefaultValidationLayers[0], "gpuav_post_process_descriptor_indexing", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &gpuavPostProcessDescriptorIndexing},
+	};
+
+	const VkLayerSettingsCreateInfoEXT layerSettingsCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+		.pNext = &validationFeatures,
+		.settingCount = static_cast<uint32_t>(settings.size()),
+		.pSettings = settings.data(),
+	};
+
+#endif // defined(VK_EXT_layer_settings) && VK_EXT_layer_settings
+
+#endif //defined(_DEBUG)
+
 	VkApplicationInfo appInfo{};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pApplicationName = "PicoGine3";
@@ -341,81 +498,17 @@ void GfxDevice::CreateVkInstance()
 	VkInstanceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	createInfo.pApplicationInfo = &appInfo;
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensionNames.size());
+	createInfo.ppEnabledExtensionNames = instanceExtensionNames.data();
 
 #if defined(_DEBUG)
 
-	uint32_t layerCount;
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-	std::vector<VkLayerProperties> availableLayers(layerCount);
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-	for (const char* layerName : m_ValidationLayers)
-	{
-		bool layerFound{};
-		for (const auto& layerProperties : availableLayers)
-		{
-			if (strcmp(layerName, layerProperties.layerName) == 0)
-			{
-				layerFound = true;
-				break;
-			}
-		}
-		if (!layerFound)
-			Logger::Get().LogError(std::wstring(L"Validation layer not found: ") + StrUtils::cstr2stdwstr(layerName));
-	}
-
-#endif //defined(_DEBUG)
-
-	VLDDisable(); //VLD generates false positive leaks from this VK call
-
-	uint32_t extensionCount{};
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-	std::vector<VkExtensionProperties> extensions(extensionCount);
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-	VLDEnable();
-
-	std::vector<const char*> instanceExtensions;
-
-	for (const auto& requiredExtension : m_RequiredInstanceExtensions)
-	{
-		bool extensionFound{};
-		for (const auto& extension : extensions)
-		{
-			if (strcmp(extension.extensionName, requiredExtension) == 0)
-			{
-				instanceExtensions.emplace_back(requiredExtension);
-				extensionFound = true;
-				break;
-			}
-		}
-		if (!extensionFound)
-			Logger::Get().LogError(std::wstring(L"Vk Instance Extension not found: ") + StrUtils::cstr2stdwstr(requiredExtension));
-	}
-
-	for (const auto& optionalExtension : m_OptionalInstanceExtensions)
-	{
-		for (const auto& extension : extensions)
-		{
-			if (strcmp(extension.extensionName, optionalExtension) == 0)
-			{
-				instanceExtensions.emplace_back(optionalExtension);
-				break;
-			}
-		}
-	}
-
-	// VkInstance extensions
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
-	createInfo.ppEnabledExtensionNames = instanceExtensions.data();
-
-#if defined(_DEBUG)
-
-	createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
-	createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
+	createInfo.enabledLayerCount = static_cast<uint32_t>(m_DefaultValidationLayers.size());
+	createInfo.ppEnabledLayerNames = m_DefaultValidationLayers.data();
 
 	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 	PopulateDebugMessengerCreateInfo(debugCreateInfo);
+	debugCreateInfo.pNext = &layerSettingsCreateInfo;
 	createInfo.pNext = &debugCreateInfo;
 
 #else
@@ -426,6 +519,11 @@ void GfxDevice::CreateVkInstance()
 #endif //defined(_DEBUG)
 
 	HandleVkResult(vkCreateInstance(&createInfo, nullptr, &m_VkInstance));
+	volkLoadInstance(m_VkInstance);
+
+	logger.LogInfo(L"Enabled instance extensions:\n.", false);
+	for (const auto& extension : instanceExtensionNames)
+		logger.LogInfo(std::format(L"\t%s\n", extension), false);
 }
 
 void GfxDevice::CreateSurface()
@@ -454,7 +552,6 @@ void GfxDevice::SelectPhysicalDevice()
 		if (IsDeviceSuitable(device))
 		{
 			m_VkPhysicalDevice = device;
-			vkGetPhysicalDeviceProperties(m_VkPhysicalDevice, &m_VkPhysicalDeviceProperties);
 			return;
 		}
 	}
@@ -470,12 +567,6 @@ bool GfxDevice::IsDeviceSuitable(VkPhysicalDevice device) const
 	if (deviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		return false;
 
-	if (!CheckDeviceExtensionsSupport(device))
-		return false;
-
-	if (!FindQueueFamilies(device).IsComplete())
-		return false;
-
 	const SwapChainSupportDetails swapChainSupport{ QuerySwapChainSupport(device) };
 	if (swapChainSupport.m_Formats.empty() || swapChainSupport.m_PresentModes.empty())
 		return false;
@@ -483,92 +574,349 @@ bool GfxDevice::IsDeviceSuitable(VkPhysicalDevice device) const
 	return true;
 }
 
-QueueFamilyIndices GfxDevice::FindQueueFamilies(VkPhysicalDevice device) const
+uint32_t GfxDevice::FindQueueFamilyIndex(VkPhysicalDevice device, VkQueueFlags flags)
 {
-	QueueFamilyIndices indices;
-
 	uint32_t queueFamilyCount{};
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
 
 	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-	uint32_t i{};
-	for (const auto& queueFamily : queueFamilies)
+	auto findDedicatedQueueFamilyIndex = [&queueFamilies](VkQueueFlags require, VkQueueFlags avoid) -> uint32_t
 	{
-		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-			indices.m_GraphicsFamily = i;
+		for (uint32_t i{}; i < queueFamilies.size(); ++i)
+		{
+			const bool isSuitable{ (queueFamilies[i].queueFlags & require) == require };
+			const bool isDedicated{ (queueFamilies[i].queueFlags & avoid) == 0 };
+			if (queueFamilies[i].queueCount && isSuitable && isDedicated)
+				return i;
+		}
+		return DeviceQueueInfo::sk_Invalid;
+	};
 
-		VkBool32 presentSupport{};
-		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_VkSurface, &presentSupport);
-		if (presentSupport)
-			indices.m_PresentFamily = i;
-
-		if (indices.IsComplete())
-			break;
-
-		++i;
+	// dedicated queue for compute
+	if (flags & VK_QUEUE_COMPUTE_BIT)
+	{
+		const uint32_t q{ findDedicatedQueueFamilyIndex(flags, VK_QUEUE_GRAPHICS_BIT) };
+		if (q != DeviceQueueInfo::sk_Invalid)
+			return q;
 	}
 
-	return indices;
+	// dedicated queue for transfer
+	if (flags & VK_QUEUE_TRANSFER_BIT)
+	{
+		const uint32_t q{ findDedicatedQueueFamilyIndex(flags, VK_QUEUE_GRAPHICS_BIT) };
+		if (q != DeviceQueueInfo::sk_Invalid)
+			return q;
+	}
+
+	// any suitable
+	return findDedicatedQueueFamilyIndex(flags, 0);
 }
 
 void GfxDevice::CreateLogicalDevice()
 {
-	m_QueueFamilyIndices = FindQueueFamilies(m_VkPhysicalDevice);
+	auto& logger{ Logger::Get() };
 
-	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-	const std::set<uint32_t> uniqueQueueFamilies{ m_QueueFamilyIndices.m_GraphicsFamily.value(), m_QueueFamilyIndices.m_PresentFamily.value() };
+	m_UseStaging = !IsHostVisibleSingleHeapMemory(m_VkPhysicalDevice);
+
+	std::vector<VkExtensionProperties> allDeviceExtensions;
+	GetDeviceExtensionProps(m_VkPhysicalDevice, allDeviceExtensions);
+
+#if defined(_DEBUG)
+
+	for (const char* layer : m_DefaultValidationLayers)
+		GetDeviceExtensionProps(m_VkPhysicalDevice, allDeviceExtensions, layer);
+
+#endif //defined(_DEBUG)
+
+	//TODO: Add Acceleration structs and ray tracing extensions properties here
+
+	vkGetPhysicalDeviceFeatures2(m_VkPhysicalDevice, &m_VkFeatures10);
+	vkGetPhysicalDeviceProperties2(m_VkPhysicalDevice, &m_VkPhysicalDeviceProperties2);
+
+	const uint32_t apiVersion{ m_VkPhysicalDeviceProperties2.properties.apiVersion };
+	const char* physicalDeviceName{ m_VkPhysicalDeviceProperties2.properties.deviceName };
+	logger.LogInfo(std::format(L"Physical device name: %s\n", physicalDeviceName), false);
+	logger.LogInfo(std::format(L"API version: %i.%i.%i.%i\n", VK_API_VERSION_MAJOR(apiVersion), VK_API_VERSION_MINOR(apiVersion), VK_API_VERSION_PATCH(apiVersion), VK_API_VERSION_VARIANT(apiVersion)));
+	logger.LogInfo(std::format(L"Driver info: %s %s\n", m_VkPhysicalDeviceDriverProperties.driverName, m_VkPhysicalDeviceDriverProperties.driverInfo), false);
+
+	logger.LogInfo(L"Vulkan physical device extensions:\n", false);
+	for (const auto& extension : allDeviceExtensions)
+		logger.LogInfo(std::format(L"\t%s\n", extension.extensionName), false);
+
+	m_DeviceQueueInfo.m_GraphicsFamily = FindQueueFamilyIndex(m_VkPhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
+	m_DeviceQueueInfo.m_ComputeFamily = FindQueueFamilyIndex(m_VkPhysicalDevice, VK_QUEUE_COMPUTE_BIT);
 
 	constexpr float queuePriority{ 1.0f };
-	for (const auto queueFamily : uniqueQueueFamilies)
+	const std::vector<VkDeviceQueueCreateInfo> queueCreateInfos
 	{
-		VkDeviceQueueCreateInfo queueCreateInfo{};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = queueFamily;
-		queueCreateInfo.queueCount = 1;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
-		queueCreateInfos.push_back(queueCreateInfo);
-	}
+		{
+			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+			.queueFamilyIndex = m_DeviceQueueInfo.m_GraphicsFamily,
+			.queueCount = 1,
+			.pQueuePriorities = &queuePriority
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+			.queueFamilyIndex = m_DeviceQueueInfo.m_ComputeFamily,
+			.queueCount = 1,
+			.pQueuePriorities = &queuePriority
+		}
+	};
+	
+	const uint32_t numQueues{ queueCreateInfos[0].queueFamilyIndex == queueCreateInfos[1].queueFamilyIndex ? 1 : 2 };
 
-	VkPhysicalDeviceFeatures deviceFeatures{};
-	deviceFeatures.samplerAnisotropy = VK_TRUE;
+	std::vector<const char*> deviceExtensionNames
+	{
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	};
+
+	//TODO: Add extra features here (optional)
+
+	VkPhysicalDeviceFeatures deviceFeatures10
+	{
+		.geometryShader = m_VkFeatures10.features.geometryShader, // enable if supported
+		.tessellationShader = m_VkFeatures10.features.tessellationShader, // enable if supported
+		.sampleRateShading = VK_TRUE,
+		.multiDrawIndirect = VK_TRUE,
+		.drawIndirectFirstInstance = VK_TRUE,
+		.depthBiasClamp = VK_TRUE,
+		.fillModeNonSolid = m_VkFeatures10.features.fillModeNonSolid, // enable if supported
+		.samplerAnisotropy = VK_TRUE,
+		.textureCompressionBC = m_VkFeatures10.features.textureCompressionBC, // enable if supported
+		.vertexPipelineStoresAndAtomics = m_VkFeatures10.features.vertexPipelineStoresAndAtomics, // enable if supported
+		.fragmentStoresAndAtomics = VK_TRUE,
+		.shaderImageGatherExtended = VK_TRUE,
+		.shaderInt64 = m_VkFeatures10.features.shaderInt64, // enable if supported
+	};
+
+	VkPhysicalDeviceVulkan11Features deviceFeatures11
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+		.pNext = nullptr,
+		.storageBuffer16BitAccess = VK_TRUE,
+		.samplerYcbcrConversion = m_VkFeatures11.samplerYcbcrConversion, // enable if supported
+		.shaderDrawParameters = VK_TRUE,
+	};
+
+	VkPhysicalDeviceVulkan12Features deviceFeatures12
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.pNext = &deviceFeatures11,
+		.drawIndirectCount = m_VkFeatures12.drawIndirectCount, // enable if supported
+		.storageBuffer8BitAccess = m_VkFeatures12.storageBuffer8BitAccess, // enable if supported
+		.uniformAndStorageBuffer8BitAccess = m_VkFeatures12.uniformAndStorageBuffer8BitAccess, // enable if supported
+		.shaderFloat16 = m_VkFeatures12.shaderFloat16, // enable if supported
+		.descriptorIndexing = VK_TRUE,
+		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
+		.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
+		.descriptorBindingUpdateUnusedWhilePending = VK_TRUE,
+		.descriptorBindingPartiallyBound = VK_TRUE,
+		.descriptorBindingVariableDescriptorCount = VK_TRUE,
+		.runtimeDescriptorArray = VK_TRUE,
+		.scalarBlockLayout = VK_TRUE,
+		.uniformBufferStandardLayout = VK_TRUE,
+		.hostQueryReset = m_VkFeatures12.hostQueryReset, // enable if supported
+		.timelineSemaphore = VK_TRUE,
+		.bufferDeviceAddress = VK_TRUE,
+		.vulkanMemoryModel = m_VkFeatures12.vulkanMemoryModel, // enable if supported
+		.vulkanMemoryModelDeviceScope = m_VkFeatures12.vulkanMemoryModelDeviceScope, // enable if supported
+	};
+
+	VkPhysicalDeviceVulkan13Features deviceFeatures13
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+		.pNext = &deviceFeatures12,
+		.subgroupSizeControl = VK_TRUE,
+		.synchronization2 = VK_TRUE,
+		.dynamicRendering = VK_TRUE,
+		.maintenance4 = VK_TRUE,
+	};
+
+	// Check missing extensions
+	std::string missingExtensions;
+	for (const char* ext : deviceExtensionNames)
+		if (!HasExtension(ext, allDeviceExtensions))
+			missingExtensions += "\t" + std::string(ext) + "\n";
+
+	if (!missingExtensions.empty())
+		logger.LogError(std::format(L"Missing Vulkan device extensions: %s\n", missingExtensions));
+	
+
+	// Check missing features
+	std::string missingFeatures;
+#define CHECK_VULKAN_FEATURE(reqFeatures, availFeatures, feature, version)     \
+	if ((reqFeatures.feature == VK_TRUE) && (availFeatures.feature == VK_FALSE)) \
+		missingFeatures.append("\t" version "." #feature "\n");
+
+#define CHECK_FEATURE_1_0(feature) CHECK_VULKAN_FEATURE(deviceFeatures10, m_VkFeatures10.features, feature, "1.0 ");
+	CHECK_FEATURE_1_0(robustBufferAccess);
+	CHECK_FEATURE_1_0(fullDrawIndexUint32);
+	CHECK_FEATURE_1_0(imageCubeArray);
+	CHECK_FEATURE_1_0(independentBlend);
+	CHECK_FEATURE_1_0(geometryShader);
+	CHECK_FEATURE_1_0(tessellationShader);
+	CHECK_FEATURE_1_0(sampleRateShading);
+	CHECK_FEATURE_1_0(dualSrcBlend);
+	CHECK_FEATURE_1_0(logicOp);
+	CHECK_FEATURE_1_0(multiDrawIndirect);
+	CHECK_FEATURE_1_0(drawIndirectFirstInstance);
+	CHECK_FEATURE_1_0(depthClamp);
+	CHECK_FEATURE_1_0(depthBiasClamp);
+	CHECK_FEATURE_1_0(fillModeNonSolid);
+	CHECK_FEATURE_1_0(depthBounds);
+	CHECK_FEATURE_1_0(wideLines);
+	CHECK_FEATURE_1_0(largePoints);
+	CHECK_FEATURE_1_0(alphaToOne);
+	CHECK_FEATURE_1_0(multiViewport);
+	CHECK_FEATURE_1_0(samplerAnisotropy);
+	CHECK_FEATURE_1_0(textureCompressionETC2);
+	CHECK_FEATURE_1_0(textureCompressionASTC_LDR);
+	CHECK_FEATURE_1_0(textureCompressionBC);
+	CHECK_FEATURE_1_0(occlusionQueryPrecise);
+	CHECK_FEATURE_1_0(pipelineStatisticsQuery);
+	CHECK_FEATURE_1_0(vertexPipelineStoresAndAtomics);
+	CHECK_FEATURE_1_0(fragmentStoresAndAtomics);
+	CHECK_FEATURE_1_0(shaderTessellationAndGeometryPointSize);
+	CHECK_FEATURE_1_0(shaderImageGatherExtended);
+	CHECK_FEATURE_1_0(shaderStorageImageExtendedFormats);
+	CHECK_FEATURE_1_0(shaderStorageImageMultisample);
+	CHECK_FEATURE_1_0(shaderStorageImageReadWithoutFormat);
+	CHECK_FEATURE_1_0(shaderStorageImageWriteWithoutFormat);
+	CHECK_FEATURE_1_0(shaderUniformBufferArrayDynamicIndexing);
+	CHECK_FEATURE_1_0(shaderSampledImageArrayDynamicIndexing);
+	CHECK_FEATURE_1_0(shaderStorageBufferArrayDynamicIndexing);
+	CHECK_FEATURE_1_0(shaderStorageImageArrayDynamicIndexing);
+	CHECK_FEATURE_1_0(shaderClipDistance);
+	CHECK_FEATURE_1_0(shaderCullDistance);
+	CHECK_FEATURE_1_0(shaderFloat64);
+	CHECK_FEATURE_1_0(shaderInt64);
+	CHECK_FEATURE_1_0(shaderInt16);
+	CHECK_FEATURE_1_0(shaderResourceResidency);
+	CHECK_FEATURE_1_0(shaderResourceMinLod);
+	CHECK_FEATURE_1_0(sparseBinding);
+	CHECK_FEATURE_1_0(sparseResidencyBuffer);
+	CHECK_FEATURE_1_0(sparseResidencyImage2D);
+	CHECK_FEATURE_1_0(sparseResidencyImage3D);
+	CHECK_FEATURE_1_0(sparseResidency2Samples);
+	CHECK_FEATURE_1_0(sparseResidency4Samples);
+	CHECK_FEATURE_1_0(sparseResidency8Samples);
+	CHECK_FEATURE_1_0(sparseResidency16Samples);
+	CHECK_FEATURE_1_0(sparseResidencyAliased);
+	CHECK_FEATURE_1_0(variableMultisampleRate);
+	CHECK_FEATURE_1_0(inheritedQueries);
+#undef CHECK_FEATURE_1_0
+
+#define CHECK_FEATURE_1_1(feature) CHECK_VULKAN_FEATURE(deviceFeatures11, m_VkFeatures11, feature, "1.1 ");
+	CHECK_FEATURE_1_1(storageBuffer16BitAccess);
+	CHECK_FEATURE_1_1(uniformAndStorageBuffer16BitAccess);
+	CHECK_FEATURE_1_1(storagePushConstant16);
+	CHECK_FEATURE_1_1(storageInputOutput16);
+	CHECK_FEATURE_1_1(multiview);
+	CHECK_FEATURE_1_1(multiviewGeometryShader);
+	CHECK_FEATURE_1_1(multiviewTessellationShader);
+	CHECK_FEATURE_1_1(variablePointersStorageBuffer);
+	CHECK_FEATURE_1_1(variablePointers);
+	CHECK_FEATURE_1_1(protectedMemory);
+	CHECK_FEATURE_1_1(samplerYcbcrConversion);
+	CHECK_FEATURE_1_1(shaderDrawParameters);
+#undef CHECK_FEATURE_1_1
+
+#define CHECK_FEATURE_1_2(feature) CHECK_VULKAN_FEATURE(deviceFeatures12, m_VkFeatures12, feature, "1.2 ");
+	CHECK_FEATURE_1_2(samplerMirrorClampToEdge);
+	CHECK_FEATURE_1_2(drawIndirectCount);
+	CHECK_FEATURE_1_2(storageBuffer8BitAccess);
+	CHECK_FEATURE_1_2(uniformAndStorageBuffer8BitAccess);
+	CHECK_FEATURE_1_2(storagePushConstant8);
+	CHECK_FEATURE_1_2(shaderBufferInt64Atomics);
+	CHECK_FEATURE_1_2(shaderSharedInt64Atomics);
+	CHECK_FEATURE_1_2(shaderFloat16);
+	CHECK_FEATURE_1_2(shaderInt8);
+	CHECK_FEATURE_1_2(descriptorIndexing);
+	CHECK_FEATURE_1_2(shaderInputAttachmentArrayDynamicIndexing);
+	CHECK_FEATURE_1_2(shaderUniformTexelBufferArrayDynamicIndexing);
+	CHECK_FEATURE_1_2(shaderStorageTexelBufferArrayDynamicIndexing);
+	CHECK_FEATURE_1_2(shaderUniformBufferArrayNonUniformIndexing);
+	CHECK_FEATURE_1_2(shaderSampledImageArrayNonUniformIndexing);
+	CHECK_FEATURE_1_2(shaderStorageBufferArrayNonUniformIndexing);
+	CHECK_FEATURE_1_2(shaderStorageImageArrayNonUniformIndexing);
+	CHECK_FEATURE_1_2(shaderInputAttachmentArrayNonUniformIndexing);
+	CHECK_FEATURE_1_2(shaderUniformTexelBufferArrayNonUniformIndexing);
+	CHECK_FEATURE_1_2(shaderStorageTexelBufferArrayNonUniformIndexing);
+	CHECK_FEATURE_1_2(descriptorBindingUniformBufferUpdateAfterBind);
+	CHECK_FEATURE_1_2(descriptorBindingSampledImageUpdateAfterBind);
+	CHECK_FEATURE_1_2(descriptorBindingStorageImageUpdateAfterBind);
+	CHECK_FEATURE_1_2(descriptorBindingStorageBufferUpdateAfterBind);
+	CHECK_FEATURE_1_2(descriptorBindingUniformTexelBufferUpdateAfterBind);
+	CHECK_FEATURE_1_2(descriptorBindingStorageTexelBufferUpdateAfterBind);
+	CHECK_FEATURE_1_2(descriptorBindingUpdateUnusedWhilePending);
+	CHECK_FEATURE_1_2(descriptorBindingPartiallyBound);
+	CHECK_FEATURE_1_2(descriptorBindingVariableDescriptorCount);
+	CHECK_FEATURE_1_2(runtimeDescriptorArray);
+	CHECK_FEATURE_1_2(samplerFilterMinmax);
+	CHECK_FEATURE_1_2(scalarBlockLayout);
+	CHECK_FEATURE_1_2(imagelessFramebuffer);
+	CHECK_FEATURE_1_2(uniformBufferStandardLayout);
+	CHECK_FEATURE_1_2(shaderSubgroupExtendedTypes);
+	CHECK_FEATURE_1_2(separateDepthStencilLayouts);
+	CHECK_FEATURE_1_2(hostQueryReset);
+	CHECK_FEATURE_1_2(timelineSemaphore);
+	CHECK_FEATURE_1_2(bufferDeviceAddress);
+	CHECK_FEATURE_1_2(bufferDeviceAddressCaptureReplay);
+	CHECK_FEATURE_1_2(bufferDeviceAddressMultiDevice);
+	CHECK_FEATURE_1_2(vulkanMemoryModel);
+	CHECK_FEATURE_1_2(vulkanMemoryModelDeviceScope);
+	CHECK_FEATURE_1_2(vulkanMemoryModelAvailabilityVisibilityChains);
+	CHECK_FEATURE_1_2(shaderOutputViewportIndex);
+	CHECK_FEATURE_1_2(shaderOutputLayer);
+	CHECK_FEATURE_1_2(subgroupBroadcastDynamicId);
+#undef CHECK_FEATURE_1_2
+
+#define CHECK_FEATURE_1_3(feature) CHECK_VULKAN_FEATURE(deviceFeatures13, m_VkFeatures13, feature, "1.3 ");
+	CHECK_FEATURE_1_3(robustImageAccess);
+	CHECK_FEATURE_1_3(inlineUniformBlock);
+	CHECK_FEATURE_1_3(descriptorBindingInlineUniformBlockUpdateAfterBind);
+	CHECK_FEATURE_1_3(pipelineCreationCacheControl);
+	CHECK_FEATURE_1_3(privateData);
+	CHECK_FEATURE_1_3(shaderDemoteToHelperInvocation);
+	CHECK_FEATURE_1_3(shaderTerminateInvocation);
+	CHECK_FEATURE_1_3(subgroupSizeControl);
+	CHECK_FEATURE_1_3(computeFullSubgroups);
+	CHECK_FEATURE_1_3(synchronization2);
+	CHECK_FEATURE_1_3(textureCompressionASTC_HDR);
+	CHECK_FEATURE_1_3(shaderZeroInitializeWorkgroupMemory);
+	CHECK_FEATURE_1_3(dynamicRendering);
+	CHECK_FEATURE_1_3(shaderIntegerDotProduct);
+	CHECK_FEATURE_1_3(maintenance4);
+#undef CHECK_FEATURE_1_3
+#undef CHECK_VULKAN_FEATURE
+
+	if (!missingFeatures.empty())
+		logger.LogError(std::format(L"Missing Vulkan features : % s\n", missingFeatures));
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
-	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+	createInfo.pNext = &deviceFeatures13;
+	createInfo.queueCreateInfoCount = numQueues;
 	createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
-	createInfo.pEnabledFeatures = &deviceFeatures;
-
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(m_DeviceExtensions.size());
-	createInfo.ppEnabledExtensionNames = m_DeviceExtensions.data();
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensionNames.size());
+	createInfo.ppEnabledExtensionNames = deviceExtensionNames.data();
+	createInfo.pEnabledFeatures = &deviceFeatures10;
 
 #if defined(_DEBUG)
-	createInfo.enabledLayerCount = static_cast<uint32_t>(m_ValidationLayers.size());
-	createInfo.ppEnabledLayerNames = m_ValidationLayers.data();
+	createInfo.enabledLayerCount = static_cast<uint32_t>(m_DefaultValidationLayers.size());
+	createInfo.ppEnabledLayerNames = m_DefaultValidationLayers.data();
 #else
 	createInfo.enabledLayerCount = 0;
 #endif //defined(_DEBUG)
 
 	HandleVkResult(vkCreateDevice(m_VkPhysicalDevice, &createInfo, nullptr, &m_VkDevice));
-}
+	volkLoadDevice(m_VkDevice);
 
-bool GfxDevice::CheckDeviceExtensionsSupport(VkPhysicalDevice device) const
-{
-	uint32_t extensionCount;
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
-
-	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
-
-	std::set<std::string> requiredExtensions{ m_DeviceExtensions.begin(), m_DeviceExtensions.end() };
-
-	for (const auto& extension : availableExtensions)
-		requiredExtensions.erase(extension.extensionName);
-
-	return requiredExtensions.empty();
+	vkGetDeviceQueue(m_VkDevice, m_DeviceQueueInfo.m_GraphicsFamily, 0, &m_DeviceQueueInfo.m_GraphicsQueue);
+	vkGetDeviceQueue(m_VkDevice, m_DeviceQueueInfo.m_ComputeFamily, 0, &m_DeviceQueueInfo.m_ComputeQueue);
 }
 
 SwapChainSupportDetails GfxDevice::QuerySwapChainSupport(VkPhysicalDevice device) const
@@ -602,7 +950,7 @@ void GfxDevice::CreateCommandPool()
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	poolInfo.queueFamilyIndex = m_QueueFamilyIndices.m_GraphicsFamily.value();
+	poolInfo.queueFamilyIndex = m_DeviceQueueInfo.m_GraphicsFamily;
 
 	HandleVkResult(vkCreateCommandPool(m_VkDevice, &poolInfo, nullptr, &m_VkCommandPool));
 }

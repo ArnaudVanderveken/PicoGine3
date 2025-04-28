@@ -21,17 +21,22 @@ private:
 
 #elif defined(_VK)
 
-#include <vulkan/vulkan.h>
-#include <optional>
+//#include <vulkan/vulkan.h>
+#include <volk.h>
 
-struct QueueFamilyIndices
+struct DeviceQueueInfo
 {
-	std::optional<uint32_t> m_GraphicsFamily{};
-	std::optional<uint32_t> m_PresentFamily{};
+	static constexpr uint32_t sk_Invalid{ 0xffffffff };
+	uint32_t m_GraphicsFamily{ sk_Invalid };
+	uint32_t m_ComputeFamily{ sk_Invalid };
+	//uint32_t m_PresentFamily{ sk_Invalid };
+	VkQueue m_GraphicsQueue{ VK_NULL_HANDLE };
+	VkQueue m_ComputeQueue{ VK_NULL_HANDLE };
+	//VkQueue m_PresentQueue{ VK_NULL_HANDLE };
 
-	[[nodiscard]] bool IsComplete() const
+	[[nodiscard]] bool IsComplete() const	
 	{
-		return m_GraphicsFamily.has_value() && m_PresentFamily.has_value();
+		return m_GraphicsFamily != sk_Invalid && m_ComputeFamily != sk_Invalid /*&& m_PresentFamily != sk_Invalid*/;
 	}
 };
 
@@ -56,10 +61,12 @@ public:
 	[[nodiscard]] VkCommandPool GetCommandPool() const;
 	[[nodiscard]] VkDevice GetDevice() const;
 	[[nodiscard]] VkPhysicalDeviceProperties GetPhysicalDeviceProperties() const;
+	[[nodiscard]] VkPhysicalDeviceProperties2 GetPhysicalDeviceProperties2() const;
 	[[nodiscard]] VkSurfaceKHR GetSurface() const;
 	[[nodiscard]] VkQueue GetGraphicsQueue() const;
-	[[nodiscard]] VkQueue GetPresentQueue() const;
-	[[nodiscard]] QueueFamilyIndices GetQueueFamilyIndices() const;
+	//[[nodiscard]] VkQueue GetPresentQueue() const;
+	[[nodiscard]] VkQueue GetComputeQueue() const;
+	[[nodiscard]] DeviceQueueInfo GetDeviceQueueInfo() const;
 
 	[[nodiscard]] SwapChainSupportDetails SwapChainSupport() const;
 	[[nodiscard]] uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
@@ -79,44 +86,49 @@ public:
 private:
 
 #if defined(_DEBUG)
-	std::vector<const char*> m_ValidationLayers
+	std::vector<const char*> m_DefaultValidationLayers
 	{
 		"VK_LAYER_KHRONOS_validation",
 	};
 #endif //defined(_DEBUG)
 
-	std::vector<const char*> m_RequiredInstanceExtensions
-	{
-		VK_KHR_SURFACE_EXTENSION_NAME,
-		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-#if defined(_DEBUG)
-		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif //defined(_DEBUG)
-	};
-
-	std::vector<const char*> m_OptionalInstanceExtensions{};
-
-	std::vector<const char*> m_DeviceExtensions
-	{
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-	};
+//	std::vector<const char*> m_DeviceExtensions
+//	{
+//		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+//	};
 
 	VkInstance m_VkInstance;
+
 	VkSurfaceKHR m_VkSurface;
+
 	VkPhysicalDevice m_VkPhysicalDevice;
-	VkPhysicalDeviceProperties m_VkPhysicalDeviceProperties;
-	QueueFamilyIndices m_QueueFamilyIndices;
+	VkPhysicalDeviceDepthStencilResolveProperties m_VkPhysicalDeviceDepthStencilResolveProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_STENCIL_RESOLVE_PROPERTIES, nullptr };
+	VkPhysicalDeviceDriverProperties m_VkPhysicalDeviceDriverProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES, &m_VkPhysicalDeviceDepthStencilResolveProperties };
+	VkPhysicalDeviceVulkan12Properties m_VkPhysicalDeviceVulkan12Properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES, &m_VkPhysicalDeviceDriverProperties };
+	VkPhysicalDeviceProperties2 m_VkPhysicalDeviceProperties2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &m_VkPhysicalDeviceVulkan12Properties, VkPhysicalDeviceProperties{} };
+	VkPhysicalDeviceVulkan13Features m_VkFeatures13{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
+	VkPhysicalDeviceVulkan12Features m_VkFeatures12{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, .pNext = &m_VkFeatures13 };
+	VkPhysicalDeviceVulkan11Features m_VkFeatures11{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES, .pNext = &m_VkFeatures12 };
+	VkPhysicalDeviceFeatures2 m_VkFeatures10{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &m_VkFeatures11 };
+
+	DeviceQueueInfo m_DeviceQueueInfo;
 	VkDevice m_VkDevice;
-	VkQueue m_VkGraphicsQueue, m_VkPresentQueue;
 	VkCommandPool m_VkCommandPool;
+
+	uint32_t m_KhronosValidationVersion{};
+	bool m_HasEXTSwapchainColorspace{ false };
+	bool m_UseStaging{ false };
+
+	static bool HasExtension(const char* ext, const std::vector<VkExtensionProperties>& extensionProperties);
+	static bool IsHostVisibleSingleHeapMemory(VkPhysicalDevice physicalDevice);
+	static void GetDeviceExtensionProps(VkPhysicalDevice physicalDevice, std::vector<VkExtensionProperties>& extensionProperties, const char* validationLayer = nullptr);
 
 	void CreateVkInstance();
 	void CreateSurface();
 	void SelectPhysicalDevice();
 	bool IsDeviceSuitable(VkPhysicalDevice device) const;
-	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
+	static uint32_t FindQueueFamilyIndex(VkPhysicalDevice device, VkQueueFlags flags);
 	void CreateLogicalDevice();
-	bool CheckDeviceExtensionsSupport(VkPhysicalDevice device) const;
 	SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device) const;
 	void CreateCommandPool();
 

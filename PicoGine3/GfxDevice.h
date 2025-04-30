@@ -90,11 +90,6 @@ private:
 	};
 #endif //defined(_DEBUG)
 
-//	std::vector<const char*> m_DeviceExtensions
-//	{
-//		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-//	};
-
 	VkInstance m_VkInstance;
 
 	VkSurfaceKHR m_VkSurface;

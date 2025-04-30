@@ -122,6 +122,21 @@ VkFormatProperties GfxDevice::GetFormatProperties(VkFormat format) const
 	return formatProperties;
 }
 
+VkResult GfxDevice::SetVkObjectName(VkObjectType objectType, uint64_t handle, const char* name) const
+{
+	if (!name || !*name)
+		return VK_SUCCESS;
+
+	const VkDebugUtilsObjectNameInfoEXT ni
+	{
+		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+		.objectType = objectType,
+		.objectHandle = handle,
+		.pObjectName = name
+	};
+	return vkSetDebugUtilsObjectNameEXT(m_VkDevice, &ni);
+}
+
 VkCommandBuffer GfxDevice::BeginSingleTimeCmdBuffer() const
 {
 	VkCommandBufferAllocateInfo allocInfo{};
@@ -911,6 +926,8 @@ void GfxDevice::CreateLogicalDevice()
 
 	HandleVkResult(vkCreateDevice(m_VkPhysicalDevice, &createInfo, nullptr, &m_VkDevice));
 	volkLoadDevice(m_VkDevice);
+
+	SetVkObjectName(VK_OBJECT_TYPE_DEVICE, (uint64_t)m_VkDevice, "Vulkan Device");
 
 	vkGetDeviceQueue(m_VkDevice, m_DeviceQueueInfo.m_GraphicsFamily, 0, &m_DeviceQueueInfo.m_GraphicsQueue);
 	vkGetDeviceQueue(m_VkDevice, m_DeviceQueueInfo.m_ComputeFamily, 0, &m_DeviceQueueInfo.m_ComputeQueue);

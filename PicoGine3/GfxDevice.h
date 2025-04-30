@@ -71,6 +71,8 @@ public:
 	[[nodiscard]] VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
 	[[nodiscard]] VkFormatProperties GetFormatProperties(VkFormat format) const;
 
+	VkResult SetVkObjectName(VkObjectType objectType, uint64_t handle, const char* name) const;
+
 	[[nodiscard]] VkCommandBuffer BeginSingleTimeCmdBuffer() const;
 	void EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const;
 

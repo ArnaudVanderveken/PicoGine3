@@ -1,4 +1,5 @@
 #include "pch.h"
+#define VOLK_IMPLEMENTATION
 #include "GfxDevice.h"
 
 #include <format>
@@ -13,6 +14,8 @@
 
 GfxDevice::GfxDevice()
 {
+	HandleVkResult(volkInitialize());
+
 	CreateVkInstance();
 	CreateSurface();
 
@@ -52,6 +55,11 @@ VkDevice GfxDevice::GetDevice() const
 	return m_VkDevice;
 }
 
+VkPhysicalDevice GfxDevice::GetPhysicalDevice() const
+{
+	return m_VkPhysicalDevice;
+}
+
 VkPhysicalDeviceProperties GfxDevice::GetPhysicalDeviceProperties() const
 {
 	return m_VkPhysicalDeviceProperties2.properties;
@@ -65,21 +73,6 @@ VkPhysicalDeviceProperties2 GfxDevice::GetPhysicalDeviceProperties2() const
 VkSurfaceKHR GfxDevice::GetSurface() const
 {
 	return m_VkSurface;
-}
-
-VkQueue GfxDevice::GetGraphicsQueue() const
-{
-	return m_DeviceQueueInfo.m_GraphicsQueue;
-}
-
-//VkQueue GfxDevice::GetPresentQueue() const
-//{
-//	return m_DeviceQueueInfo.m_PresentQueue;
-//}
-
-VkQueue GfxDevice::GetComputeQueue() const
-{
-	return m_DeviceQueueInfo.m_ComputeQueue;
 }
 
 DeviceQueueInfo GfxDevice::GetDeviceQueueInfo() const
@@ -402,14 +395,18 @@ void GfxDevice::CreateVkInstance()
 
 #endif //defined(_DEBUG)
 
+#if defined(_DEBUG)
 	VLDDisable(); //VLD generates false positive leaks from this VK call
+#endif //defined(_DEBUG)
 
 	uint32_t extensionCount{};
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
 	std::vector<VkExtensionProperties> extensionProperties(extensionCount);
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensionProperties.data());
 
+#if defined(_DEBUG)
 	VLDEnable();
+#endif //defined(_DEBUG)
 
 #if defined(_DEBUG)
 	for (const char* layer : m_DefaultValidationLayers)
@@ -523,7 +520,7 @@ void GfxDevice::CreateVkInstance()
 
 	logger.LogInfo(L"Enabled instance extensions:\n.", false);
 	for (const auto& extension : instanceExtensionNames)
-		logger.LogInfo(std::format(L"\t%s\n", extension), false);
+		logger.LogInfo(std::format(L"\t{}\n", StrUtils::cstr2stdwstr(extension)), false);
 }
 
 void GfxDevice::CreateSurface()
@@ -637,13 +634,13 @@ void GfxDevice::CreateLogicalDevice()
 
 	const uint32_t apiVersion{ m_VkPhysicalDeviceProperties2.properties.apiVersion };
 	const char* physicalDeviceName{ m_VkPhysicalDeviceProperties2.properties.deviceName };
-	logger.LogInfo(std::format(L"Physical device name: %s\n", physicalDeviceName), false);
-	logger.LogInfo(std::format(L"API version: %i.%i.%i.%i\n", VK_API_VERSION_MAJOR(apiVersion), VK_API_VERSION_MINOR(apiVersion), VK_API_VERSION_PATCH(apiVersion), VK_API_VERSION_VARIANT(apiVersion)));
-	logger.LogInfo(std::format(L"Driver info: %s %s\n", m_VkPhysicalDeviceDriverProperties.driverName, m_VkPhysicalDeviceDriverProperties.driverInfo), false);
+	logger.LogInfo(std::format(L"Physical device name: {}\n", StrUtils::cstr2stdwstr(physicalDeviceName)), false);
+	logger.LogInfo(std::format(L"API version: {}.{}.{}.{}\n", VK_API_VERSION_MAJOR(apiVersion), VK_API_VERSION_MINOR(apiVersion), VK_API_VERSION_PATCH(apiVersion), VK_API_VERSION_VARIANT(apiVersion)));
+	logger.LogInfo(std::format(L"Driver info: {} {}\n", StrUtils::cstr2stdwstr(m_VkPhysicalDeviceDriverProperties.driverName), StrUtils::cstr2stdwstr(m_VkPhysicalDeviceDriverProperties.driverInfo)), false);
 
 	logger.LogInfo(L"Vulkan physical device extensions:\n", false);
 	for (const auto& extension : allDeviceExtensions)
-		logger.LogInfo(std::format(L"\t%s\n", extension.extensionName), false);
+		logger.LogInfo(std::format(L"\t{}\n", StrUtils::cstr2stdwstr(extension.extensionName)), false);
 
 	m_DeviceQueueInfo.m_GraphicsFamily = FindQueueFamilyIndex(m_VkPhysicalDevice, VK_QUEUE_GRAPHICS_BIT);
 	m_DeviceQueueInfo.m_ComputeFamily = FindQueueFamilyIndex(m_VkPhysicalDevice, VK_QUEUE_COMPUTE_BIT);
@@ -665,7 +662,7 @@ void GfxDevice::CreateLogicalDevice()
 		}
 	};
 	
-	const uint32_t numQueues{ queueCreateInfos[0].queueFamilyIndex == queueCreateInfos[1].queueFamilyIndex ? 1 : 2 };
+	const uint32_t numQueues{ queueCreateInfos[0].queueFamilyIndex == queueCreateInfos[1].queueFamilyIndex ? 1u : 2u };
 
 	std::vector<const char*> deviceExtensionNames
 	{
@@ -736,22 +733,22 @@ void GfxDevice::CreateLogicalDevice()
 	};
 
 	// Check missing extensions
-	std::string missingExtensions;
+	std::wstring missingExtensions;
 	for (const char* ext : deviceExtensionNames)
 		if (!HasExtension(ext, allDeviceExtensions))
-			missingExtensions += "\t" + std::string(ext) + "\n";
+			missingExtensions += L"\t" + StrUtils::cstr2stdwstr(ext) + L"\n";
 
 	if (!missingExtensions.empty())
-		logger.LogError(std::format(L"Missing Vulkan device extensions: %s\n", missingExtensions));
+		logger.LogError(std::format(L"Missing Vulkan device extensions: {}\n", missingExtensions));
 	
 
 	// Check missing features
-	std::string missingFeatures;
+	std::wstring missingFeatures;
 #define CHECK_VULKAN_FEATURE(reqFeatures, availFeatures, feature, version)     \
 	if ((reqFeatures.feature == VK_TRUE) && (availFeatures.feature == VK_FALSE)) \
-		missingFeatures.append("\t" version "." #feature "\n");
+		missingFeatures.append(L"\t" version L"." #feature L"\n");
 
-#define CHECK_FEATURE_1_0(feature) CHECK_VULKAN_FEATURE(deviceFeatures10, m_VkFeatures10.features, feature, "1.0 ");
+#define CHECK_FEATURE_1_0(feature) CHECK_VULKAN_FEATURE(deviceFeatures10, m_VkFeatures10.features, feature, L"1.0 ");
 	CHECK_FEATURE_1_0(robustBufferAccess);
 	CHECK_FEATURE_1_0(fullDrawIndexUint32);
 	CHECK_FEATURE_1_0(imageCubeArray);
@@ -809,7 +806,7 @@ void GfxDevice::CreateLogicalDevice()
 	CHECK_FEATURE_1_0(inheritedQueries);
 #undef CHECK_FEATURE_1_0
 
-#define CHECK_FEATURE_1_1(feature) CHECK_VULKAN_FEATURE(deviceFeatures11, m_VkFeatures11, feature, "1.1 ");
+#define CHECK_FEATURE_1_1(feature) CHECK_VULKAN_FEATURE(deviceFeatures11, m_VkFeatures11, feature, L"1.1 ");
 	CHECK_FEATURE_1_1(storageBuffer16BitAccess);
 	CHECK_FEATURE_1_1(uniformAndStorageBuffer16BitAccess);
 	CHECK_FEATURE_1_1(storagePushConstant16);
@@ -824,7 +821,7 @@ void GfxDevice::CreateLogicalDevice()
 	CHECK_FEATURE_1_1(shaderDrawParameters);
 #undef CHECK_FEATURE_1_1
 
-#define CHECK_FEATURE_1_2(feature) CHECK_VULKAN_FEATURE(deviceFeatures12, m_VkFeatures12, feature, "1.2 ");
+#define CHECK_FEATURE_1_2(feature) CHECK_VULKAN_FEATURE(deviceFeatures12, m_VkFeatures12, feature, L"1.2 ");
 	CHECK_FEATURE_1_2(samplerMirrorClampToEdge);
 	CHECK_FEATURE_1_2(drawIndirectCount);
 	CHECK_FEATURE_1_2(storageBuffer8BitAccess);
@@ -874,7 +871,7 @@ void GfxDevice::CreateLogicalDevice()
 	CHECK_FEATURE_1_2(subgroupBroadcastDynamicId);
 #undef CHECK_FEATURE_1_2
 
-#define CHECK_FEATURE_1_3(feature) CHECK_VULKAN_FEATURE(deviceFeatures13, m_VkFeatures13, feature, "1.3 ");
+#define CHECK_FEATURE_1_3(feature) CHECK_VULKAN_FEATURE(deviceFeatures13, m_VkFeatures13, feature, L"1.3 ");
 	CHECK_FEATURE_1_3(robustImageAccess);
 	CHECK_FEATURE_1_3(inlineUniformBlock);
 	CHECK_FEATURE_1_3(descriptorBindingInlineUniformBlockUpdateAfterBind);
@@ -894,7 +891,7 @@ void GfxDevice::CreateLogicalDevice()
 #undef CHECK_VULKAN_FEATURE
 
 	if (!missingFeatures.empty())
-		logger.LogError(std::format(L"Missing Vulkan features : % s\n", missingFeatures));
+		logger.LogError(std::format(L"Missing Vulkan features : {}\n", missingFeatures));
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

@@ -136,6 +136,8 @@ VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, u
 		m_VkRenderFinishedSemaphores[m_CurrentFrame]
 	};
 
+	const auto& deviceQueueInfo{ m_pGfxDevice->GetDeviceQueueInfo() };
+
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.waitSemaphoreCount = 1;
@@ -146,7 +148,7 @@ VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, u
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	HandleVkResult(vkQueueSubmit(m_pGfxDevice->GetGraphicsQueue(), 1, &submitInfo, m_VkInFlightFences[m_CurrentFrame]));
+	HandleVkResult(vkQueueSubmit(deviceQueueInfo.m_GraphicsQueue, 1, &submitInfo, m_VkInFlightFences[m_CurrentFrame]));
 
 	const VkSwapchainKHR swapChains[]
 	{
@@ -164,13 +166,16 @@ VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, u
 
 	m_CurrentFrame = (m_CurrentFrame + 1) % sk_MaxFramesInFlight;
 
-	return vkQueuePresentKHR(m_pGfxDevice->GetPresentQueue(), &presentInfo);
+	return vkQueuePresentKHR(deviceQueueInfo.m_GraphicsQueue, &presentInfo);
 }
 
 VkSurfaceFormatKHR GfxSwapchain::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
+	// Select RGBA or BGRA based on first available format
+	const auto targetFormat{ availableFormats[0].format == VK_FORMAT_B8G8R8A8_SRGB || availableFormats[0].format == VK_FORMAT_B8G8R8A8_UNORM || availableFormats[0].format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ? VK_FORMAT_B8G8R8A8_SRGB : VK_FORMAT_R8G8B8A8_SRGB };
+
 	for (const auto& availableFormat : availableFormats)
-		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (availableFormat.format == targetFormat && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 			return availableFormat;
 
 	return availableFormats[0];
@@ -211,8 +216,14 @@ VkExtent2D GfxSwapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabi
 void GfxSwapchain::CreateSwapchain()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
-	const auto& queueFamilyIndices{ m_pGfxDevice->GetDeviceQueueInfo() };
+	const auto& physicalDevice{ m_pGfxDevice->GetPhysicalDevice() };
+	const auto& deviceQueueInfo{ m_pGfxDevice->GetDeviceQueueInfo() };
 	const auto& surface{ m_pGfxDevice->GetSurface() };
+
+	VkBool32 queueFamilySupportsPresentation{};
+	HandleVkResult(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, deviceQueueInfo.m_GraphicsFamily, surface, &queueFamilySupportsPresentation));
+	if (!queueFamilySupportsPresentation)
+		Logger::Get().LogError(L"The queue family used with the swapchain does not support presentation.");
 
 	const SwapChainSupportDetails swapChainSupport{ m_pGfxDevice->SwapChainSupport()};
 
@@ -225,40 +236,38 @@ void GfxSwapchain::CreateSwapchain()
 	if (swapChainSupport.m_Capabilities.maxImageCount > 0 && imageCount > swapChainSupport.m_Capabilities.maxImageCount)
 		imageCount = swapChainSupport.m_Capabilities.maxImageCount;
 
+	VkImageUsageFlags usageFlags{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT };
+
+	VkSurfaceCapabilitiesKHR surfaceCapabilities{};
+	HandleVkResult(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities));
+
+	VkFormatProperties formatProperties{};
+	vkGetPhysicalDeviceFormatProperties(physicalDevice, surfaceFormat.format, &formatProperties);
+
+	const bool isStorageSupported{ (surfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT) > 0 };
+	const bool isTilingOptimalSupported{ (formatProperties.optimalTilingFeatures & VK_IMAGE_USAGE_STORAGE_BIT) > 0 };
+
+	if (isStorageSupported && isTilingOptimalSupported)
+		usageFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
+
+	const bool isCompositeAlphaOpaqueSupported{ (surfaceCapabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) != 0 };
+
 	const VkSwapchainKHR oldSwapchain{ m_VkSwapChain };
 
 	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	createInfo.surface = surface;
-
 	createInfo.minImageCount = imageCount;
 	createInfo.imageFormat = surfaceFormat.format;
 	createInfo.imageColorSpace = surfaceFormat.colorSpace;
 	createInfo.imageExtent = extent;
 	createInfo.imageArrayLayers = 1;
-	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-	if (queueFamilyIndices.m_GraphicsFamily != queueFamilyIndices.m_PresentFamily)
-	{
-		const uint32_t queueFamilyIndicesArray[]
-		{
-			queueFamilyIndices.m_GraphicsFamily.value(),
-			queueFamilyIndices.m_PresentFamily.value()
-		};
-
-		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-		createInfo.queueFamilyIndexCount = 2;
-		createInfo.pQueueFamilyIndices = queueFamilyIndicesArray;
-	}
-	else
-	{
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		createInfo.queueFamilyIndexCount = 0; // Optional
-		createInfo.pQueueFamilyIndices = nullptr; // Optional
-	}
-
+	createInfo.imageUsage = usageFlags;
+	createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	createInfo.queueFamilyIndexCount = 1;
+	createInfo.pQueueFamilyIndices = &deviceQueueInfo.m_GraphicsFamily;
 	createInfo.preTransform = swapChainSupport.m_Capabilities.currentTransform;
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	createInfo.compositeAlpha = isCompositeAlphaOpaqueSupported ? VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR : VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
 	createInfo.presentMode = presentMode;
 	createInfo.clipped = VK_TRUE;
 	createInfo.oldSwapchain = oldSwapchain;

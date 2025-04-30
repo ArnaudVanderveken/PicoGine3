@@ -44,7 +44,7 @@ private:
 
 	std::wofstream m_OutputStream{};
 
-	void ProcessLog(LogLevel level, const std::wstring& logString, bool detailedOutput = true, const std::source_location& sourceLocation);
+	void ProcessLog(LogLevel level, const std::wstring& logString, bool detailedOutput, const std::source_location& sourceLocation);
 
 };
 

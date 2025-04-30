@@ -60,12 +60,10 @@ public:
 
 	[[nodiscard]] VkCommandPool GetCommandPool() const;
 	[[nodiscard]] VkDevice GetDevice() const;
+	[[nodiscard]] VkPhysicalDevice GetPhysicalDevice() const;
 	[[nodiscard]] VkPhysicalDeviceProperties GetPhysicalDeviceProperties() const;
 	[[nodiscard]] VkPhysicalDeviceProperties2 GetPhysicalDeviceProperties2() const;
 	[[nodiscard]] VkSurfaceKHR GetSurface() const;
-	[[nodiscard]] VkQueue GetGraphicsQueue() const;
-	//[[nodiscard]] VkQueue GetPresentQueue() const;
-	[[nodiscard]] VkQueue GetComputeQueue() const;
 	[[nodiscard]] DeviceQueueInfo GetDeviceQueueInfo() const;
 
 	[[nodiscard]] SwapChainSupportDetails SwapChainSupport() const;

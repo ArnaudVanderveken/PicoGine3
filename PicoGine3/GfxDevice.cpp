@@ -172,6 +172,36 @@ void GfxDevice::EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const
 	vkFreeCommandBuffers(m_VkDevice, m_VkCommandPool, 1, &commandBuffer);
 }
 
+VkFence GfxDevice::CreateVkFence(const char* name) const
+{
+	constexpr VkFenceCreateInfo createInfo
+	{
+	  .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+	  .flags = 0,
+	};
+
+	VkFence fence{ VK_NULL_HANDLE };
+	HandleVkResult(vkCreateFence(m_VkDevice, &createInfo, nullptr, &fence));
+	HandleVkResult(SetVkObjectName(VK_OBJECT_TYPE_FENCE, reinterpret_cast<uint64_t>(fence), name));
+
+	return fence;
+}
+
+VkSemaphore GfxDevice::CreateVkSemaphore(const char* name) const
+{
+	constexpr VkSemaphoreCreateInfo createInfo
+	{
+	  .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+	  .flags = 0,
+	};
+
+	VkSemaphore semaphore{ VK_NULL_HANDLE };
+	HandleVkResult(vkCreateSemaphore(m_VkDevice, &createInfo, nullptr, &semaphore));
+	HandleVkResult(SetVkObjectName(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<uint64_t>(semaphore), name));
+
+	return semaphore;
+}
+
 void GfxDevice::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const
 {
 	VkBufferCreateInfo bufferInfo{};

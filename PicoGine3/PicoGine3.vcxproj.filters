@@ -95,6 +95,9 @@
     <ClCompile Include="GfxBuffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GfxImmediateCommands.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WindowManager.h">
@@ -203,6 +206,9 @@
       <Filter>ImGUI</Filter>
     </ClInclude>
     <ClInclude Include="GfxBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxImmediateCommands.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

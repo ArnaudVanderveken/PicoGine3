@@ -76,6 +76,9 @@ public:
 	[[nodiscard]] VkCommandBuffer BeginSingleTimeCmdBuffer() const;
 	void EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const;
 
+	[[nodiscard]] VkFence CreateVkFence(const char* name = nullptr) const;
+	[[nodiscard]] VkSemaphore CreateVkSemaphore(const char* name = nullptr) const;
+
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
 	void CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) const;

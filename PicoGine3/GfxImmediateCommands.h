@@ -26,7 +26,7 @@ class GfxDevice;
 class GfxImmediateCommands final
 {
 public:
-	explicit GfxImmediateCommands(GfxDevice* pDevice, uint32_t queueFamilyIndex, VkQueue queue, const char* debugName = nullptr);
+	explicit GfxImmediateCommands(GfxDevice* pDevice, const char* debugName = nullptr);
 	~GfxImmediateCommands();
 
 	GfxImmediateCommands(const GfxImmediateCommands&) noexcept = delete;

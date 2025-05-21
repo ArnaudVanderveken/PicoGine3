@@ -54,7 +54,9 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMAT
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false },
 	m_pGfxDevice{ std::make_unique<GfxDevice>() },
-	m_GfxSwapchain{ m_pGfxDevice.get() }
+	m_GfxSwapchain{ m_pGfxDevice.get() },
+	m_GfxImmediateCommands{ m_pGfxDevice.get(), "GraphicsAPI::m_GfxImmediateCommands"},
+	m_TimelineSemaphore{ m_pGfxDevice->CreateVkSemaphoreTimeline(m_GfxSwapchain.GetImageCount() - 1, "GraphicsAPI::m_TimelineSemaphore") }
 {
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();

@@ -71,9 +71,9 @@ private:
 	std::vector<VkDeviceMemory> m_VkDepthImagesMemory;
 	std::vector<VkImageView> m_VkDepthImageViews;
 
-	std::vector<VkSemaphore> m_VkImageAvailableSemaphores;
-	std::vector<VkSemaphore> m_VkRenderFinishedSemaphores;
-	std::vector<VkFence> m_VkInFlightFences;
+	std::array<VkSemaphore, sk_MaxFramesInFlight> m_AcquireSemaphores;
+	std::array<VkFence, sk_MaxFramesInFlight> m_PresentFences;
+	std::array<uint64_t, sk_MaxFramesInFlight> m_TimelineWaitValues;
 
 	uint32_t m_CurrentFrame{};
 	uint32_t m_CurrentFrameSwapchainImageIndex{};

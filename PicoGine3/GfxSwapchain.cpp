@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "GfxSwapchain.h"
 
+#include <format>
+
 #include "Settings.h"
 #include "WindowManager.h"
 
@@ -25,9 +27,8 @@ GfxSwapchain::~GfxSwapchain()
 
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
-		vkDestroySemaphore(device, m_VkImageAvailableSemaphores[i], nullptr);
-		vkDestroySemaphore(device, m_VkRenderFinishedSemaphores[i], nullptr);
-		vkDestroyFence(device, m_VkInFlightFences[i], nullptr);
+		vkDestroySemaphore(device, m_AcquireSemaphores[i], nullptr);
+		vkDestroyFence(device, m_PresentFences[i], nullptr);
 	}
 
 	vkDestroyRenderPass(device, m_VkRenderPass, nullptr);
@@ -108,22 +109,22 @@ VkResult GfxSwapchain::AcquireNextImage()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
-	vkWaitForFences(device, 1, &m_VkInFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
-	return vkAcquireNextImageKHR(device, m_VkSwapChain, UINT64_MAX, m_VkImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &m_CurrentFrameSwapchainImageIndex);
+	vkWaitForFences(device, 1, &m_PresentFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
+	return vkAcquireNextImageKHR(device, m_VkSwapChain, UINT64_MAX, m_AcquireSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &m_CurrentFrameSwapchainImageIndex);
 }
 
 void GfxSwapchain::ResetFrameInFlightFence() const
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
-	vkResetFences(device, 1, &m_VkInFlightFences[m_CurrentFrame]);
+	vkResetFences(device, 1, &m_PresentFences[m_CurrentFrame]);
 }
 
 VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, uint32_t bufferCount)
 {
 	const VkSemaphore waitSemaphores[]
 	{
-		m_VkImageAvailableSemaphores[m_CurrentFrame]
+		m_AcquireSemaphores[m_CurrentFrame]
 	};
 
 	constexpr VkPipelineStageFlags waitStages[]
@@ -148,7 +149,7 @@ VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, u
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	HandleVkResult(vkQueueSubmit(deviceQueueInfo.m_GraphicsQueue, 1, &submitInfo, m_VkInFlightFences[m_CurrentFrame]));
+	HandleVkResult(vkQueueSubmit(deviceQueueInfo.m_GraphicsQueue, 1, &submitInfo, m_PresentFences[m_CurrentFrame]));
 
 	const VkSwapchainKHR swapChains[]
 	{
@@ -415,22 +416,10 @@ void GfxSwapchain::CreateSyncObjects()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
-	m_VkImageAvailableSemaphores.resize(sk_MaxFramesInFlight);
-	m_VkRenderFinishedSemaphores.resize(sk_MaxFramesInFlight);
-	m_VkInFlightFences.resize(sk_MaxFramesInFlight);
-
-	VkSemaphoreCreateInfo semaphoreInfo{};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	VkFenceCreateInfo fenceInfo{};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 	{
-		HandleVkResult(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &m_VkImageAvailableSemaphores[i]));
-		HandleVkResult(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &m_VkRenderFinishedSemaphores[i]));
-		HandleVkResult(vkCreateFence(device, &fenceInfo, nullptr, &m_VkInFlightFences[i]));
+		m_AcquireSemaphores[i] = m_pGfxDevice->CreateVkSemaphore(std::format("GfxSwapchain::m_AcquireSemaphore[%i]", i).c_str());
+		m_PresentFences[i] = m_pGfxDevice->CreateVkFence(std::format("GfxSwapchain::m_PresentFences[%i]", i).c_str());
 	}
 }
 

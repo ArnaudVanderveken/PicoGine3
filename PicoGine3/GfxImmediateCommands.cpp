@@ -19,19 +19,21 @@ uint64_t SubmitHandle::Handle() const
 	return (static_cast<uint64_t>(m_SubmitId) << 32) + m_BufferIndex;
 }
 
-GfxImmediateCommands::GfxImmediateCommands(GfxDevice* pDevice, uint32_t queueFamilyIndex, VkQueue queue, const char* debugName) :
+GfxImmediateCommands::GfxImmediateCommands(GfxDevice* pDevice, const char* debugName) :
 	m_pDevice{ pDevice },
-	m_QueueFamilyIndex{ queueFamilyIndex },
-	m_Queue{ queue },
 	m_DebugName{ debugName }
 {
+	const auto& queueInfo{ m_pDevice->GetDeviceQueueInfo() };
+	m_QueueFamilyIndex = queueInfo.m_GraphicsFamily;
+	m_Queue = queueInfo.m_GraphicsQueue;
+
 	const auto& device{ m_pDevice->GetDevice() };
 
 	const VkCommandPoolCreateInfo poolCreateInfo
 	{
 	  .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 	  .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
-	  .queueFamilyIndex = queueFamilyIndex,
+	  .queueFamilyIndex = m_QueueFamilyIndex,
 	};
 	HandleVkResult(vkCreateCommandPool(device, &poolCreateInfo, nullptr, &m_CommandPool));
 	HandleVkResult(m_pDevice->SetVkObjectName(VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<uint64_t>(m_CommandPool), debugName));

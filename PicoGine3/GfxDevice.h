@@ -78,6 +78,7 @@ public:
 
 	[[nodiscard]] VkFence CreateVkFence(const char* name = nullptr) const;
 	[[nodiscard]] VkSemaphore CreateVkSemaphore(const char* name = nullptr) const;
+	[[nodiscard]] VkSemaphore CreateVkSemaphoreTimeline(uint64_t initValue, const char* name = nullptr) const;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
 	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;

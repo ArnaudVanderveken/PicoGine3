@@ -202,6 +202,28 @@ VkSemaphore GfxDevice::CreateVkSemaphore(const char* name) const
 	return semaphore;
 }
 
+VkSemaphore GfxDevice::CreateVkSemaphoreTimeline(uint64_t initValue, const char* name) const
+{
+	const VkSemaphoreTypeCreateInfo semaphoreTypeCreateInfo
+	{
+	  .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+	  .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+	  .initialValue = initValue,
+	};
+
+	const VkSemaphoreCreateInfo createInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = &semaphoreTypeCreateInfo,
+		.flags = 0,
+	};
+
+	VkSemaphore semaphore{ VK_NULL_HANDLE };
+	HandleVkResult(vkCreateSemaphore(m_VkDevice, &createInfo, nullptr, &semaphore));
+	HandleVkResult(SetVkObjectName(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<uint64_t>(semaphore), name));
+	return semaphore;
+}
+
 void GfxDevice::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const
 {
 	VkBufferCreateInfo bufferInfo{};

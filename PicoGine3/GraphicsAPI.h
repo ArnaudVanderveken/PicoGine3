@@ -3,6 +3,7 @@
 
 #include "GfxBuffer.h"
 #include "GfxDevice.h"
+#include "GfxImmediateCommands.h"
 #include "GfxSwapchain.h"
 
 #if defined(_DX12)
@@ -76,6 +77,8 @@ private:
 
 	std::unique_ptr<GfxDevice> m_pGfxDevice;
 	GfxSwapchain m_GfxSwapchain;
+	GfxImmediateCommands m_GfxImmediateCommands;
+	VkSemaphore m_TimelineSemaphore;
 	
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkGraphicsPipelineLayout;

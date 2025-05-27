@@ -78,13 +78,12 @@ private:
 	std::unique_ptr<GfxDevice> m_pGfxDevice;
 	GfxSwapchain m_GfxSwapchain;
 	GfxImmediateCommands m_GfxImmediateCommands;
+	CommandBufferWrapper& m_CurrentCmdBuffer;
 	VkSemaphore m_TimelineSemaphore;
 	
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkGraphicsPipelineLayout;
 	VkPipeline m_VkGraphicsPipeline;
-	
-	std::vector<VkCommandBuffer> m_VkCommandBuffers;
 
 	std::vector<std::unique_ptr<GfxBuffer>> m_PerFrameUBO;
 	VkDescriptorPool m_VkDescriptorPool;

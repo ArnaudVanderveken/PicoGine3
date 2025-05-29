@@ -54,9 +54,10 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMAT
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false },
 	m_pGfxDevice{ std::make_unique<GfxDevice>() },
-	m_GfxSwapchain{ m_pGfxDevice.get() },
-	m_GfxImmediateCommands{ m_pGfxDevice.get(), "GraphicsAPI::m_GfxImmediateCommands"},
-	m_TimelineSemaphore{ m_pGfxDevice->CreateVkSemaphoreTimeline(m_GfxSwapchain.GetImageCount() - 1, "GraphicsAPI::m_TimelineSemaphore") }
+	m_pGfxSwapchain{ std::make_unique<GfxSwapchain>(m_pGfxDevice.get()) },
+	m_pGfxImmediateCommands{ std::make_unique<GfxImmediateCommands>(m_pGfxDevice.get(), "GraphicsAPI::m_pGfxImmediateCommands") },
+	m_TimelineSemaphore{ m_pGfxDevice->CreateVkSemaphoreTimeline(m_pGfxSwapchain->GetImageCount() - 1, "GraphicsAPI::m_TimelineSemaphore") },
+	m_pShaderModulePool{ std::make_unique<ShaderModulePool>(m_pGfxDevice.get()) }
 {
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
@@ -77,6 +78,8 @@ GraphicsAPI::~GraphicsAPI()
 	vkDeviceWaitIdle(device);
 
 	ResourceManager::Get().ReleaseGPUBuffers();
+
+	vkDestroySemaphore(device, m_TimelineSemaphore, nullptr);
 
 	vkDestroySampler(device, m_VkTestModelTextureSampler, nullptr);
 	vkDestroyImageView(device, m_VkTestModelTextureImageView, nullptr);
@@ -111,22 +114,22 @@ void GraphicsAPI::ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& me
 	vkFreeMemory(device, memory, nullptr);
 }
 
-void GraphicsAPI::BeginFrame()
+void GraphicsAPI::BeginFrame() const
 {
-	const auto currentFrameIndex{ m_GfxSwapchain.GetCurrentFrameIndex() };
+	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
 
-	const auto vkResult{ m_GfxSwapchain.AcquireNextImage() };
+	const auto vkResult{ m_pGfxSwapchain->AcquireNextImage() };
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR)
 	{
-		m_GfxSwapchain.RecreateSwapchain();
+		m_pGfxSwapchain->RecreateSwapchain();
 		return;
 	}
 
 	if (vkResult != VK_SUCCESS && vkResult != VK_SUBOPTIMAL_KHR)
 		HandleVkResult(vkResult);
 
-	m_GfxSwapchain.ResetFrameInFlightFence();
+	m_pGfxSwapchain->ResetFrameInFlightFence();
 	vkResetCommandBuffer(m_VkCommandBuffers[currentFrameIndex], 0);
 
 	UpdatePerFrameUBO();
@@ -144,10 +147,10 @@ void GraphicsAPI::BeginFrame()
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = m_GfxSwapchain.GetRenderPass();
-	renderPassInfo.framebuffer = m_GfxSwapchain.GetCurrentFrameBuffer();
+	renderPassInfo.renderPass = m_pGfxSwapchain->GetRenderPass();
+	renderPassInfo.framebuffer = m_pGfxSwapchain->GetCurrentFrameBuffer();
 	renderPassInfo.renderArea.offset = { 0, 0 };
-	renderPassInfo.renderArea.extent = m_GfxSwapchain.GetSwapChainExtent();
+	renderPassInfo.renderArea.extent = m_pGfxSwapchain->GetSwapChainExtent();
 	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 	renderPassInfo.pClearValues = clearValues.data();
 	
@@ -158,8 +161,8 @@ void GraphicsAPI::BeginFrame()
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(m_GfxSwapchain.Width());
-	viewport.height = static_cast<float>(m_GfxSwapchain.Height());
+	viewport.width = static_cast<float>(m_pGfxSwapchain->Width());
+	viewport.height = static_cast<float>(m_pGfxSwapchain->Height());
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 	
@@ -167,22 +170,22 @@ void GraphicsAPI::BeginFrame()
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
-	scissor.extent = m_GfxSwapchain.GetSwapChainExtent();
+	scissor.extent = m_pGfxSwapchain->GetSwapChainExtent();
 	
 	vkCmdSetScissor(m_VkCommandBuffers[currentFrameIndex], 0, 1, &scissor);
 }
 
-void GraphicsAPI::EndFrame()
+void GraphicsAPI::EndFrame() const
 {
-	const auto currentFrameIndex{ m_GfxSwapchain.GetCurrentFrameIndex() };
+	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
 
 	vkCmdEndRenderPass(m_VkCommandBuffers[currentFrameIndex]);
 	HandleVkResult(vkEndCommandBuffer(m_VkCommandBuffers[currentFrameIndex]));
 
-	const auto vkResult{ m_GfxSwapchain.SubmitCommandBuffers(&m_VkCommandBuffers[currentFrameIndex], 1) };
+	const auto vkResult{ m_pGfxSwapchain->SubmitCommandBuffers(&m_VkCommandBuffers[currentFrameIndex], 1) };
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
-		m_GfxSwapchain.RecreateSwapchain();
+		m_pGfxSwapchain->RecreateSwapchain();
 
 	else if (vkResult != VK_SUCCESS)
 		HandleVkResult(vkResult);
@@ -192,7 +195,7 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 {
 	const auto& resourceManager{ ResourceManager::Get() };
 	const auto& meshData{ resourceManager.GetMeshData(meshDataID) };
-	const auto currentFrameIndex{ m_GfxSwapchain.GetCurrentFrameIndex() };
+	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
 
 	const PushConstants pushConstants{ transform };
 
@@ -215,59 +218,23 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 	vkCmdDrawIndexed(m_VkCommandBuffers[currentFrameIndex], meshData.m_IndexCount, 1, 0, 0, 0);
 }
 
-std::vector<char> GraphicsAPI::ReadShaderFile(const std::wstring& filename)
-{
-	std::ifstream file{ filename, std::ios::ate | std::ios::binary };
-
-	if (!file.is_open())
-		Logger::Get().LogError(L"Unable to open " + filename);
-
-	const size_t fileSize{ static_cast<size_t>(file.tellg()) };
-	std::vector<char> buffer(fileSize);
-
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-
-	file.close();
-
-	return buffer;
-}
-
-VkShaderModule GraphicsAPI::CreateShaderModule(const std::vector<char>& code) const
-{
-	const auto& device{ m_pGfxDevice->GetDevice() };
-
-	VkShaderModuleCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = code.size();
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-	VkShaderModule shaderModule;
-	HandleVkResult(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
-
-	return shaderModule;
-}
-
 void GraphicsAPI::CreateGraphicsPipeline()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
-	const auto vertShaderCode{ ReadShaderFile(L"Shaders/SimpleMeshTextured_VS.spv") };
-	const auto fragShaderCode{ ReadShaderFile(L"Shaders/SimpleMeshTextured_PS.spv") };
-
-	const VkShaderModule vertShaderModule{ CreateShaderModule(vertShaderCode) };
-	const VkShaderModule fragShaderModule{ CreateShaderModule(fragShaderCode) };
+	const ShaderModule vertShaderModule{ m_pShaderModulePool->GetShaderModule(L"Shaders/SimpleMeshTextured_VS.spv") };
+	const ShaderModule fragShaderModule{ m_pShaderModulePool->GetShaderModule(L"Shaders/SimpleMeshTextured_PS.spv") };
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageInfo.module = vertShaderModule;
+	vertShaderStageInfo.module = vertShaderModule.m_ShaderModule;
 	vertShaderStageInfo.pName = "VSMain";
 
 	VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
 	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageInfo.module = fragShaderModule;
+	fragShaderStageInfo.module = fragShaderModule.m_ShaderModule;
 	fragShaderStageInfo.pName = "PSMain";
 
 	VkPipelineShaderStageCreateInfo shaderStages[]
@@ -305,14 +272,14 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(m_GfxSwapchain.Width());
-	viewport.height = static_cast<float>(m_GfxSwapchain.Height());
+	viewport.width = static_cast<float>(m_pGfxSwapchain->Width());
+	viewport.height = static_cast<float>(m_pGfxSwapchain->Height());
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
-	scissor.extent = m_GfxSwapchain.GetSwapChainExtent();
+	scissor.extent = m_pGfxSwapchain->GetSwapChainExtent();
 
 	VkPipelineViewportStateCreateInfo viewportState{};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -365,7 +332,8 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	VkPushConstantRange pushConstantRange{};
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(PushConstants);
+	//pushConstantRange.size = sizeof(PushConstants);
+	pushConstantRange.size = vertShaderModule.m_PushConstantSize;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -401,15 +369,12 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
 	pipelineInfo.layout = m_VkGraphicsPipelineLayout;
-	pipelineInfo.renderPass = m_GfxSwapchain.GetRenderPass();
+	pipelineInfo.renderPass = m_pGfxSwapchain->GetRenderPass();
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
 	HandleVkResult(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_VkGraphicsPipeline));
-
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
 void GraphicsAPI::CreateCommandBuffer()
@@ -473,7 +438,7 @@ void GraphicsAPI::CreateUniformBuffers()
 
 void GraphicsAPI::UpdatePerFrameUBO() const
 {
-	const uint32_t currentFrame{ m_GfxSwapchain.GetCurrentFrameIndex() };
+	const uint32_t currentFrame{ m_pGfxSwapchain->GetCurrentFrameIndex() };
 
 	PerFrameUBO ubo{};
 
@@ -482,7 +447,7 @@ void GraphicsAPI::UpdatePerFrameUBO() const
 	static XMFLOAT3 upDir{ 0.0f, 1.0f, 0.0f };
 
 	const auto viewMat{ XMMatrixLookAtLH(XMLoadFloat3(&eyePos), XMLoadFloat3(&focusPos), XMLoadFloat3(&upDir)) };
-	const auto projMat{ XMMatrixMultiply(XMMatrixPerspectiveFovLH(XM_PIDIV4, m_GfxSwapchain.AspectRatio(), 0.1f, 10.0f), XMMatrixScaling(1.0f, -1.0f, 1.0f)) };
+	const auto projMat{ XMMatrixMultiply(XMMatrixPerspectiveFovLH(XM_PIDIV4, m_pGfxSwapchain->AspectRatio(), 0.1f, 10.0f), XMMatrixScaling(1.0f, -1.0f, 1.0f)) };
 	const auto viewProjMat{ viewMat * projMat };
 
 	XMStoreFloat4x4(&ubo.m_ViewMat, viewMat);

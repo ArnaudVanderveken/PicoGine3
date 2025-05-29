@@ -5,6 +5,7 @@
 #include "GfxDevice.h"
 #include "GfxImmediateCommands.h"
 #include "GfxSwapchain.h"
+#include "ShaderModulePool.h"
 
 #if defined(_DX12)
 
@@ -68,17 +69,18 @@ public:
 
 	void ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const;
 
-	void BeginFrame();
-	void EndFrame();
+	void BeginFrame() const;
+	void EndFrame() const;
 	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform) const;
 
 private:
 	bool m_IsInitialized;
 
 	std::unique_ptr<GfxDevice> m_pGfxDevice;
-	GfxSwapchain m_GfxSwapchain;
-	GfxImmediateCommands m_GfxImmediateCommands;
+	std::unique_ptr<GfxSwapchain> m_pGfxSwapchain;
+	std::unique_ptr<GfxImmediateCommands> m_pGfxImmediateCommands;
 	VkSemaphore m_TimelineSemaphore;
+	std::unique_ptr<ShaderModulePool> m_pShaderModulePool;
 	
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkGraphicsPipelineLayout;
@@ -94,9 +96,7 @@ private:
 	VkDeviceMemory m_VkTestModelTextureImageMemory;
 	VkImageView m_VkTestModelTextureImageView;
 	VkSampler m_VkTestModelTextureSampler;
-	
-	static std::vector<char> ReadShaderFile(const std::wstring& filename);
-	[[nodiscard]] VkShaderModule CreateShaderModule(const std::vector<char>& code) const;
+
 	void CreateGraphicsPipeline();
 	
 	void CreateCommandBuffer();	

@@ -4,6 +4,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.12.35506.116
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PicoGine3", "PicoGine3\PicoGine3.vcxproj", "{58BF9B83-9508-40E1-8EDF-14274A29503D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94} = {2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SPIRV-Reflect", "3rdParty\SPIRV-Reflect\SPIRV-Reflect.vcxproj", "{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,8 +26,17 @@ Global
 		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Release-DX12|x64.Build.0 = Release-DX12|x64
 		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Release-VK|x64.ActiveCfg = Release-VK|x64
 		{58BF9B83-9508-40E1-8EDF-14274A29503D}.Release-VK|x64.Build.0 = Release-VK|x64
+		{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}.Debug-DX12|x64.ActiveCfg = Release|x64
+		{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}.Debug-VK|x64.ActiveCfg = Release|x64
+		{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}.Debug-VK|x64.Build.0 = Release|x64
+		{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}.Release-DX12|x64.ActiveCfg = Release|x64
+		{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}.Release-VK|x64.ActiveCfg = Release|x64
+		{2C7F6377-2C3A-464B-AA44-B6C2FAB94A94}.Release-VK|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C2F5F836-370F-456F-B9F6-04B9137A512E}
 	EndGlobalSection
 EndGlobal

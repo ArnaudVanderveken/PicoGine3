@@ -129,7 +129,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions);VK_USE_PLATFORM_WIN32_KHR</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(VULKAN_SDK)\Include\Volk;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdParty\vld\include;%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(VULKAN_SDK)\Include\Volk;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0;$(SolutionDir)3rdParty\SPIRV-Reflect\</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -137,8 +137,8 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;%(AdditionalLibraryDirectories);$(VULKAN_SDK)\Lib;$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)3rdParty\vld\lib\Debug\;%(AdditionalLibraryDirectories);$(VULKAN_SDK)\Lib;$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64;$(SolutionDir)3rdParty\SPIRV-Reflect\</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;assimp-vc143-mt.lib;SPIRV-Reflect.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)3rdParty\vld\bin\Debug" "$(SolutionDir)$(Platform)\$(Configuration)" * /E /XJD /XJF /R:0 /W:0
@@ -209,7 +209,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_VK;%(PreprocessorDefinitions);VK_USE_PLATFORM_WIN32_KHR</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(VULKAN_SDK)\Include\Volk;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(VULKAN_SDK)\Include;$(VULKAN_SDK)\Include\Volk;$(SolutionDir)3rdParty\nlohmann-json;$(SolutionDir)3rdParty\stb_image;$(SolutionDir)3rdParty\assimp-5.4.3\include;$(SolutionDir)3rdParty\entt-3.14.0;$(SolutionDir)3rdParty\SPIRV-Reflect\</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -219,8 +219,8 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(VULKAN_SDK)\Lib;$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(VULKAN_SDK)\Lib;$(SolutionDir)3rdParty\assimp-5.4.3\lib\x64;$(SolutionDir)3rdParty\SPIRV-Reflect\</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;assimp-vc143-mt.lib;SPIRV-Reflect.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>robocopy "$(SolutionDir)Resources" "$(OutDir)Resources" /MIR /XJD /XJF /R:0 /W:0
@@ -387,6 +387,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClCompile Include="Scene.cpp" />
     <ClCompile Include="SceneManager.cpp" />
     <ClCompile Include="Settings.cpp" />
+    <ClCompile Include="ShaderModulePool.cpp" />
     <ClCompile Include="TimeManager.cpp" />
     <ClCompile Include="WindowManager.cpp" />
   </ItemGroup>
@@ -422,6 +423,7 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SceneManager.h" />
     <ClInclude Include="Settings.h" />
+    <ClInclude Include="ShaderModulePool.h" />
     <ClInclude Include="Singleton.h" />
     <ClInclude Include="Systems.hpp" />
     <ClInclude Include="TimeManager.h" />

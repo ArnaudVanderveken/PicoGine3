@@ -2,6 +2,7 @@
 #define GRAPHICSAPI_H
 
 #include "GfxBuffer.h"
+#include "GfxCommandBuffer.h"
 #include "GfxDevice.h"
 #include "GfxImmediateCommands.h"
 #include "GfxSwapchain.h"
@@ -66,11 +67,13 @@ public:
 
 	[[nodiscard]] bool IsInitialized() const;
 	[[nodiscard]] GfxDevice* GetGfxDevice() const;
+	[[nodiscard]] GfxImmediateCommands* GetGfxImmediateCommands() const;
+	[[nodiscard]] VkSemaphore GetTimelineSemaphore() const;
 
 	void ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const;
 
-	void BeginFrame() const;
-	void EndFrame() const;
+	void BeginFrame();
+	void EndFrame();
 	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform) const;
 
 private:
@@ -79,14 +82,13 @@ private:
 	std::unique_ptr<GfxDevice> m_pGfxDevice;
 	std::unique_ptr<GfxSwapchain> m_pGfxSwapchain;
 	std::unique_ptr<GfxImmediateCommands> m_pGfxImmediateCommands;
+	GfxCommandBuffer m_CurrentCommandBuffer;
 	VkSemaphore m_TimelineSemaphore;
 	std::unique_ptr<ShaderModulePool> m_pShaderModulePool;
 	
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkGraphicsPipelineLayout;
 	VkPipeline m_VkGraphicsPipeline;
-	
-	std::vector<VkCommandBuffer> m_VkCommandBuffers;
 
 	std::vector<std::unique_ptr<GfxBuffer>> m_PerFrameUBO;
 	VkDescriptorPool m_VkDescriptorPool;
@@ -97,9 +99,11 @@ private:
 	VkImageView m_VkTestModelTextureImageView;
 	VkSampler m_VkTestModelTextureSampler;
 
+	void AcquireCommandBuffer();
+	SubmitHandle SubmitCommandBuffer(bool present = false);
+
 	void CreateGraphicsPipeline();
 	
-	void CreateCommandBuffer();	
 	void CreateDescriptorSetLayout();
 	void CreateUniformBuffers();
 	void UpdatePerFrameUBO() const;

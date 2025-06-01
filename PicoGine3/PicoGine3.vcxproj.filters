@@ -101,6 +101,12 @@
     <ClCompile Include="ShaderModulePool.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GfxCommandBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GfxImage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WindowManager.h">
@@ -215,6 +221,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ShaderModulePool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxCommandBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxImage.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -3,6 +3,7 @@
 
 #include <format>
 
+#include "GraphicsAPI.h"
 #include "Settings.h"
 #include "WindowManager.h"
 
@@ -10,8 +11,9 @@
 
 #elif defined(_VK)
 
-GfxSwapchain::GfxSwapchain(GfxDevice* device) :
-	m_pGfxDevice{ device }
+GfxSwapchain::GfxSwapchain(GraphicsAPI* graphicsAPI) :
+	m_pGraphicsAPI{ graphicsAPI },
+	m_pGfxDevice{ graphicsAPI->GetGfxDevice() }
 {
 	CreateSwapchain();
 	CreateSwapchainImageViews();
@@ -26,10 +28,7 @@ GfxSwapchain::~GfxSwapchain()
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
-	{
 		vkDestroySemaphore(device, m_AcquireSemaphores[i], nullptr);
-		vkDestroyFence(device, m_PresentFences[i], nullptr);
-	}
 
 	vkDestroyRenderPass(device, m_VkRenderPass, nullptr);
 
@@ -83,7 +82,7 @@ float GfxSwapchain::AspectRatio() const
 	return static_cast<float>(m_VkSwapChainExtent.width) / static_cast<float>(m_VkSwapChainExtent.height);
 }
 
-uint32_t GfxSwapchain::GetCurrentFrameIndex() const
+uint64_t GfxSwapchain::GetCurrentFrameIndex() const
 {
 	return m_CurrentFrame;
 }
@@ -91,6 +90,35 @@ uint32_t GfxSwapchain::GetCurrentFrameIndex() const
 VkFormat GfxSwapchain::FindDepthFormat() const
 {
 	return m_pGfxDevice->FindSupportedFormat({ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
+
+void GfxSwapchain::SetCurrentFrameTimelineWaitValue(uint64_t value)
+{
+	m_TimelineWaitValues[m_CurrentFrame] = value;
+}
+
+VkResult GfxSwapchain::Present(VkSemaphore semaphore)
+{
+	const auto& deviceQueueInfo{ m_pGfxDevice->GetDeviceQueueInfo() };
+
+	const VkPresentInfoKHR presentInfo
+	{
+	  .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+	  .waitSemaphoreCount = 1,
+	  .pWaitSemaphores = &semaphore,
+	  .swapchainCount = 1u,
+	  .pSwapchains = &m_VkSwapChain,
+	  .pImageIndices = &m_CurrentFrameSwapchainImageIndex,
+	};
+	const VkResult result = vkQueuePresentKHR(deviceQueueInfo.m_GraphicsQueue, &presentInfo);
+
+	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)
+		HandleVkResult(result);
+
+	m_GetNextImage = true;
+	++m_CurrentFrame;
+
+	return result;
 }
 
 void GfxSwapchain::RecreateSwapchain()
@@ -105,12 +133,37 @@ void GfxSwapchain::RecreateSwapchain()
 	CreateFrameBuffers();
 }
 
-VkResult GfxSwapchain::AcquireNextImage()
+VkResult GfxSwapchain::AcquireImage()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
-	vkWaitForFences(device, 1, &m_PresentFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
-	return vkAcquireNextImageKHR(device, m_VkSwapChain, UINT64_MAX, m_AcquireSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &m_CurrentFrameSwapchainImageIndex);
+	if (m_GetNextImage)
+	{
+		const auto timelineSemaphore{ m_pGraphicsAPI->GetTimelineSemaphore() };
+
+		const VkSemaphoreWaitInfo waitInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+			.semaphoreCount = 1,
+			.pSemaphores = &timelineSemaphore,
+			.pValues = &m_TimelineWaitValues[m_CurrentFrameSwapchainImageIndex],
+		};
+
+		HandleVkResult(vkWaitSemaphores(device, &waitInfo, UINT64_MAX));
+
+		const VkSemaphore acquireSemaphore{ m_AcquireSemaphores[m_CurrentFrameSwapchainImageIndex] };
+
+		const VkResult result{ vkAcquireNextImageKHR(device, m_VkSwapChain, UINT64_MAX, acquireSemaphore, VK_NULL_HANDLE, &m_CurrentFrameSwapchainImageIndex) };
+		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)
+			HandleVkResult(result);
+
+		m_GetNextImage = false;
+		m_pGraphicsAPI->GetGfxImmediateCommands()->WaitSemaphore(acquireSemaphore);
+	}
+
+
+
+	return VK_SUCCESS;
 }
 
 void GfxSwapchain::ResetFrameInFlightFence() const
@@ -118,56 +171,6 @@ void GfxSwapchain::ResetFrameInFlightFence() const
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	vkResetFences(device, 1, &m_PresentFences[m_CurrentFrame]);
-}
-
-VkResult GfxSwapchain::SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, uint32_t bufferCount)
-{
-	const VkSemaphore waitSemaphores[]
-	{
-		m_AcquireSemaphores[m_CurrentFrame]
-	};
-
-	constexpr VkPipelineStageFlags waitStages[]
-	{
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-	};
-
-	const VkSemaphore signalSemaphores[]
-	{
-		m_VkRenderFinishedSemaphores[m_CurrentFrame]
-	};
-
-	const auto& deviceQueueInfo{ m_pGfxDevice->GetDeviceQueueInfo() };
-
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = waitSemaphores;
-	submitInfo.pWaitDstStageMask = waitStages;
-	submitInfo.commandBufferCount = bufferCount;
-	submitInfo.pCommandBuffers = cmdBuffers;
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = signalSemaphores;
-
-	HandleVkResult(vkQueueSubmit(deviceQueueInfo.m_GraphicsQueue, 1, &submitInfo, m_PresentFences[m_CurrentFrame]));
-
-	const VkSwapchainKHR swapChains[]
-	{
-		m_VkSwapChain
-	};
-
-	VkPresentInfoKHR presentInfo{};
-	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = signalSemaphores;
-	presentInfo.swapchainCount = 1;
-	presentInfo.pSwapchains = swapChains;
-	presentInfo.pImageIndices = &m_CurrentFrameSwapchainImageIndex;
-	presentInfo.pResults = nullptr; // Optional
-
-	m_CurrentFrame = (m_CurrentFrame + 1) % sk_MaxFramesInFlight;
-
-	return vkQueuePresentKHR(deviceQueueInfo.m_GraphicsQueue, &presentInfo);
 }
 
 VkSurfaceFormatKHR GfxSwapchain::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)

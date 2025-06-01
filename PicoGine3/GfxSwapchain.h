@@ -1,8 +1,6 @@
 #ifndef GFXSWAPCHAIN_H
 #define GFXSWAPCHAIN_H
 
-#include "GfxDevice.h"
-
 #if defined(_DX)
 
 class GfxSwapchain final
@@ -23,10 +21,13 @@ private:
 
 #elif defined(_VK)
 
+class GraphicsAPI;
+class GfxDevice;
+
 class GfxSwapchain final
 {
 public:
-	explicit GfxSwapchain(GfxDevice* device);
+	explicit GfxSwapchain(GraphicsAPI* graphicsAPI);
 	~GfxSwapchain();
 
 	GfxSwapchain(const GfxSwapchain&) noexcept = delete;
@@ -43,18 +44,21 @@ public:
 	[[nodiscard]] uint32_t Width() const;
 	[[nodiscard]] uint32_t Height() const;
 	[[nodiscard]] float AspectRatio() const;
-	[[nodiscard]] uint32_t GetCurrentFrameIndex() const;
+	[[nodiscard]] uint64_t GetCurrentFrameIndex() const;
 
 	[[nodiscard]] VkFormat FindDepthFormat() const;
 
-	void RecreateSwapchain();
-	[[nodiscard]] VkResult AcquireNextImage();
-	void ResetFrameInFlightFence() const;
-	[[nodiscard]] VkResult SubmitCommandBuffers(const VkCommandBuffer* cmdBuffers, uint32_t bufferCount);
+	void SetCurrentFrameTimelineWaitValue(uint64_t value);
+	VkResult Present(VkSemaphore semaphore);
 
-	static constexpr uint32_t sk_MaxFramesInFlight{ 2 };
+	void RecreateSwapchain();
+	[[nodiscard]] VkResult AcquireImage();
+	void ResetFrameInFlightFence() const;
+
+	static constexpr uint32_t sk_MaxFramesInFlight{ 3 };
 
 private:
+	GraphicsAPI* m_pGraphicsAPI;
 	GfxDevice* m_pGfxDevice;
 
 	VkFormat m_VkSwapChainColorFormat;
@@ -72,11 +76,12 @@ private:
 	std::vector<VkImageView> m_VkDepthImageViews;
 
 	std::array<VkSemaphore, sk_MaxFramesInFlight> m_AcquireSemaphores;
-	std::array<VkFence, sk_MaxFramesInFlight> m_PresentFences;
 	std::array<uint64_t, sk_MaxFramesInFlight> m_TimelineWaitValues;
 
-	uint32_t m_CurrentFrame{};
+	uint64_t m_CurrentFrame{};
 	uint32_t m_CurrentFrameSwapchainImageIndex{};
+
+	bool m_GetNextImage{ true };
 
 	static VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	static VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);

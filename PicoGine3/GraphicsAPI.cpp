@@ -67,7 +67,6 @@ GraphicsAPI::GraphicsAPI() :
 	CreateUniformBuffers();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
-	CreateCommandBuffer();
 
 	m_IsInitialized = true;
 }
@@ -106,6 +105,16 @@ GfxDevice* GraphicsAPI::GetGfxDevice() const
 	return m_pGfxDevice.get();
 }
 
+GfxImmediateCommands* GraphicsAPI::GetGfxImmediateCommands() const
+{
+	return m_pGfxImmediateCommands.get();
+}
+
+VkSemaphore GraphicsAPI::GetTimelineSemaphore() const
+{
+	return m_TimelineSemaphore;
+}
+
 void GraphicsAPI::ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const
 {
 	const auto& device = m_pGfxDevice->GetDevice();
@@ -114,32 +123,12 @@ void GraphicsAPI::ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& me
 	vkFreeMemory(device, memory, nullptr);
 }
 
-void GraphicsAPI::BeginFrame() const
+void GraphicsAPI::BeginFrame()
 {
-	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
-
-	const auto vkResult{ m_pGfxSwapchain->AcquireNextImage() };
-
-	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		m_pGfxSwapchain->RecreateSwapchain();
-		return;
-	}
-
-	if (vkResult != VK_SUCCESS && vkResult != VK_SUBOPTIMAL_KHR)
-		HandleVkResult(vkResult);
-
-	m_pGfxSwapchain->ResetFrameInFlightFence();
-	vkResetCommandBuffer(m_VkCommandBuffers[currentFrameIndex], 0);
+	AcquireCommandBuffer();
+	const VkCommandBuffer cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
 
 	UpdatePerFrameUBO();
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = 0; // Optional
-	beginInfo.pInheritanceInfo = nullptr; // Optional
-	
-	vkBeginCommandBuffer(m_VkCommandBuffers[currentFrameIndex], &beginInfo);
 
 	std::array<VkClearValue, 2> clearValues{};
 	clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
@@ -154,9 +143,9 @@ void GraphicsAPI::BeginFrame() const
 	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 	renderPassInfo.pClearValues = clearValues.data();
 	
-	vkCmdBeginRenderPass(m_VkCommandBuffers[currentFrameIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(m_VkCommandBuffers[currentFrameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipeline);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipeline);
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -166,29 +155,38 @@ void GraphicsAPI::BeginFrame() const
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 	
-	vkCmdSetViewport(m_VkCommandBuffers[currentFrameIndex], 0, 1, &viewport);
+	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
 	scissor.extent = m_pGfxSwapchain->GetSwapChainExtent();
 	
-	vkCmdSetScissor(m_VkCommandBuffers[currentFrameIndex], 0, 1, &scissor);
+	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 }
 
-void GraphicsAPI::EndFrame() const
+void GraphicsAPI::EndFrame()
 {
 	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
 
-	vkCmdEndRenderPass(m_VkCommandBuffers[currentFrameIndex]);
-	HandleVkResult(vkEndCommandBuffer(m_VkCommandBuffers[currentFrameIndex]));
+	const auto cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
+	if (cmdBuffer == VK_NULL_HANDLE)
+	{
+		Logger::Get().LogError(L"No command buffer was acquired beforehand.");
+		return;
+	}
 
-	const auto vkResult{ m_pGfxSwapchain->SubmitCommandBuffers(&m_VkCommandBuffers[currentFrameIndex], 1) };
+	vkCmdEndRenderPass(cmdBuffer);
 
-	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
+	SubmitCommandBuffer(true);
+	//HandleVkResult(vkEndCommandBuffer(m_VkCommandBuffers[currentFrameIndex]));
+
+	//const auto vkResult{ m_pGfxSwapchain->SubmitCommandBuffers(&m_VkCommandBuffers[currentFrameIndex], 1) };
+
+	/*if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 		m_pGfxSwapchain->RecreateSwapchain();
 
 	else if (vkResult != VK_SUCCESS)
-		HandleVkResult(vkResult);
+		HandleVkResult(vkResult);*/
 }
 
 void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const XMFLOAT4X4& transform) const
@@ -196,6 +194,13 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 	const auto& resourceManager{ ResourceManager::Get() };
 	const auto& meshData{ resourceManager.GetMeshData(meshDataID) };
 	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+
+	const auto cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
+	if (cmdBuffer == VK_NULL_HANDLE)
+	{
+		Logger::Get().LogError(L"No command buffer was acquired beforehand.");
+		return;
+	}
 
 	const PushConstants pushConstants{ transform };
 
@@ -209,13 +214,50 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 		0
 	};
 
-	vkCmdPushConstants(m_VkCommandBuffers[currentFrameIndex], m_VkGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+	vkCmdPushConstants(cmdBuffer, m_VkGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 
-	vkCmdBindVertexBuffers(m_VkCommandBuffers[currentFrameIndex], 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(m_VkCommandBuffers[currentFrameIndex], meshData.m_pIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(m_VkCommandBuffers[currentFrameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipelineLayout, 0, 1, &m_VkDescriptorSets[currentFrameIndex], 0, nullptr);
+	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(cmdBuffer, meshData.m_pIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipelineLayout, 0, 1, &m_VkDescriptorSets[currentFrameIndex], 0, nullptr);
 
-	vkCmdDrawIndexed(m_VkCommandBuffers[currentFrameIndex], meshData.m_IndexCount, 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmdBuffer, meshData.m_IndexCount, 1, 0, 0, 0);
+}
+
+void GraphicsAPI::AcquireCommandBuffer()
+{
+	if (m_CurrentCommandBuffer.GetCmdBuffer() != VK_NULL_HANDLE)
+		Logger::Get().LogError(L"Cannot acquire more than one command buffer simultaneously");
+
+	m_CurrentCommandBuffer = GfxCommandBuffer(m_pGfxImmediateCommands.get());
+}
+
+SubmitHandle GraphicsAPI::SubmitCommandBuffer(bool present)
+{
+	const auto cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
+	if (cmdBuffer == VK_NULL_HANDLE)
+	{
+		Logger::Get().LogError(L"No command buffer was acquired beforehand.");
+		return {};
+	}
+
+	if (present)
+	{
+		m_pGfxSwapchain->AcquireImage();
+		const uint64_t signalValue{ m_pGfxSwapchain->GetCurrentFrameIndex() + m_pGfxSwapchain->GetImageCount() };
+		m_pGfxSwapchain->SetCurrentFrameTimelineWaitValue(signalValue);
+		m_pGfxImmediateCommands->SignalSemaphore(m_TimelineSemaphore, signalValue);
+	}
+
+	const SubmitHandle handle{ m_pGfxImmediateCommands->Submit(*m_CurrentCommandBuffer.GetBufferWrapper()) };
+
+	if (present)
+		m_pGfxSwapchain->Present(m_pGfxImmediateCommands->AcquireLastSubmitSemaphore());
+
+	//ProcessDeferredTasks(); TODO
+
+	m_CurrentCommandBuffer = GfxCommandBuffer{};
+
+	return handle;
 }
 
 void GraphicsAPI::CreateGraphicsPipeline()
@@ -375,22 +417,6 @@ void GraphicsAPI::CreateGraphicsPipeline()
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
 	HandleVkResult(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_VkGraphicsPipeline));
-}
-
-void GraphicsAPI::CreateCommandBuffer()
-{
-	const auto& device{ m_pGfxDevice->GetDevice() };
-	const auto& commandPool{ m_pGfxDevice->GetCommandPool() };
-
-	m_VkCommandBuffers.resize(GfxSwapchain::sk_MaxFramesInFlight);
-
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = commandPool;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = GfxSwapchain::sk_MaxFramesInFlight;
-
-	HandleVkResult(vkAllocateCommandBuffers(device, &allocInfo, m_VkCommandBuffers.data()));
 }
 
 void GraphicsAPI::CreateDescriptorSetLayout()

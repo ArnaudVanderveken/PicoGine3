@@ -94,7 +94,7 @@ VkFormat GfxSwapchain::FindDepthFormat() const
 
 void GfxSwapchain::SetCurrentFrameTimelineWaitValue(uint64_t value)
 {
-	m_TimelineWaitValues[m_CurrentFrame] = value;
+	m_TimelineWaitValues[m_CurrentFrameSwapchainImageIndex] = value;
 }
 
 VkResult GfxSwapchain::Present(VkSemaphore semaphore)

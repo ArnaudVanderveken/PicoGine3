@@ -5,7 +5,7 @@
 void Renderer::Initialize()
 {
 	m_pGraphicsAPI = std::make_unique<GraphicsAPI>();
-	m_IsInitialized = true;
+	m_IsInitialized = m_pGraphicsAPI->IsInitialized();
 }
 
 bool Renderer::IsInitialized() const
@@ -26,17 +26,12 @@ void Renderer::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4
 void Renderer::DrawFrame()
 {
 	// For now, brute force rendering, no batching no instancing, simply rendering all models in order.
-	if (m_pGraphicsAPI->IsInitialized())
-	{
-		m_pGraphicsAPI->BeginFrame();
+	m_pGraphicsAPI->BeginFrame();
 
-		for (const auto& entry : m_RenderEntries)
-			m_pGraphicsAPI->DrawMesh(entry.m_MeshDataID, entry.m_MaterialID, entry.m_TransformMatrix);
+	for (const auto& entry : m_RenderEntries)
+		m_pGraphicsAPI->DrawMesh(entry.m_MeshDataID, entry.m_MaterialID, entry.m_TransformMatrix);
 
-		m_pGraphicsAPI->EndFrame();
-	}
-	else
-		Logger::Get().LogWarning(L"GraphicsAPI is uninitialized. Ignoring call");
+	m_pGraphicsAPI->EndFrame();
 
 	m_RenderEntries.clear();
 }

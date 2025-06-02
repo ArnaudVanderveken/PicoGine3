@@ -144,9 +144,9 @@ SubmitHandle GfxImmediateCommands::Submit(const CommandBufferWrapper& buffer)
 		},
 		{},
 	};
-	constexpr uint32_t numSignalSemaphores{ 1 };
+	uint32_t numSignalSemaphores{ 1 };
 	if (m_SignalSemaphore.semaphore)
-		signalSemaphores[numSignalSemaphores] = m_SignalSemaphore;
+		signalSemaphores[numSignalSemaphores++] = m_SignalSemaphore;
 
 	const VkCommandBufferSubmitInfo bufferSubmitInfo
 	{

@@ -57,6 +57,13 @@ struct PushConstants
 	alignas(16) XMFLOAT4X4 m_ModelMat;
 };
 
+struct DeferredTask
+{
+	explicit DeferredTask(std::packaged_task<void()>&& task, SubmitHandle handle) : m_Task(std::move(task)), m_Handle(handle) {}
+	std::packaged_task<void()> m_Task;
+	SubmitHandle m_Handle;
+};
+
 class GraphicsAPI final
 {
 public:
@@ -72,12 +79,17 @@ public:
 	[[nodiscard]] GfxDevice* GetGfxDevice() const;
 	[[nodiscard]] GfxImmediateCommands* GetGfxImmediateCommands() const;
 	[[nodiscard]] VkSemaphore GetTimelineSemaphore() const;
+	[[nodiscard]] const GfxCommandBuffer& GetCurrentCommandBuffer() const;
 
 	void ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const;
 
 	void BeginFrame();
 	void EndFrame();
 	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform) const;
+
+	void AcquireCommandBuffer();
+	SubmitHandle SubmitCommandBuffer(bool present = false);
+	void AddDeferredTask(std::packaged_task<void()>&& task, SubmitHandle handle = SubmitHandle());
 
 private:
 	bool m_IsInitialized;
@@ -88,6 +100,8 @@ private:
 	GfxCommandBuffer m_CurrentCommandBuffer;
 	VkSemaphore m_TimelineSemaphore;
 	std::unique_ptr<ShaderModulePool> m_pShaderModulePool;
+
+	std::deque<DeferredTask> m_DeferredTasks;
 	
 	VkDescriptorSetLayout m_VkDescriptorSetLayout;
 	VkPipelineLayout m_VkGraphicsPipelineLayout;
@@ -102,8 +116,8 @@ private:
 	VkImageView m_VkTestModelTextureImageView;
 	VkSampler m_VkTestModelTextureSampler;
 
-	void AcquireCommandBuffer();
-	SubmitHandle SubmitCommandBuffer(bool present = false);
+	void ProcessDeferredTasks();
+	void WaitDeferredTasks();
 
 	void CreateGraphicsPipeline();
 	

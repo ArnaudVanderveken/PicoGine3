@@ -58,8 +58,12 @@ GfxBuffer::~GfxBuffer()
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	Unmap();
-	vkDestroyBuffer(device, m_Buffer, nullptr);
-	vkFreeMemory(device, m_BufferMemory, nullptr);
+
+	if (!m_DeferredBufferRelease)
+	{
+		vkDestroyBuffer(device, m_Buffer, nullptr);
+		vkFreeMemory(device, m_BufferMemory, nullptr);
+	}
 }
 
 void GfxBuffer::Map(size_t size, size_t offset)
@@ -132,9 +136,19 @@ void GfxBuffer::InvalidateIndex(int index) const
 	Invalidate(m_AlignmentSize, index * m_AlignmentSize);
 }
 
+void GfxBuffer::DeferRelease()
+{
+	m_DeferredBufferRelease = true;
+}
+
 VkBuffer GfxBuffer::GetBuffer() const
 {
 	return m_Buffer;
+}
+
+VkDeviceMemory GfxBuffer::GetBufferMemory() const
+{
+	return m_BufferMemory;
 }
 
 #endif

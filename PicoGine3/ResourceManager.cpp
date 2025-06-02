@@ -55,9 +55,9 @@ uint32_t ResourceManager::MeshManager::Load(const std::wstring& filename)
 
 		m_LoadedFiles[filename] = static_cast<uint32_t>(m_MeshData.size());
 
-		const auto& device{ Renderer::Get().GetGraphicsAPI()->GetGfxDevice() };
+		const auto graphicsAPI{ Renderer::Get().GetGraphicsAPI() };
 
-		m_MeshData.emplace_back(MeshData{ device, vertices, indices });
+		m_MeshData.emplace_back(MeshData{ graphicsAPI, vertices, indices });
 	}
 
 	return m_LoadedFiles[filename];
@@ -71,13 +71,6 @@ const MeshData& ResourceManager::MeshManager::GetMeshData(uint32_t id) const
 
 void ResourceManager::MeshManager::ReleaseGPUBuffers()
 {
-	/*const auto graphicsAPI{ Renderer::Get().GetGraphicsAPI() };
-
-	for (const auto& meshData : m_MeshData)
-	{
-		graphicsAPI->ReleaseBuffer(meshData.m_pVertexBuffer, meshData.m_VertexBufferMemory);
-		graphicsAPI->ReleaseBuffer(meshData.m_pIndexBuffer, meshData.m_IndexBufferMemory);
-	}*/
 	m_MeshData.clear();
 }
 

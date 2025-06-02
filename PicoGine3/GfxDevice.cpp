@@ -5,6 +5,7 @@
 #include <format>
 
 #include "CoreSystems.h"
+#include "GraphicsAPI.h"
 #include "WindowManager.h"
 
 
@@ -27,12 +28,10 @@ GfxDevice::GfxDevice()
 
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
-	CreateCommandPool();
 }
 
 GfxDevice::~GfxDevice()
 {
-	vkDestroyCommandPool(m_VkDevice, m_VkCommandPool, nullptr);
 	vkDestroyDevice(m_VkDevice, nullptr);
 
 #if defined(_DEBUG)
@@ -43,11 +42,6 @@ GfxDevice::~GfxDevice()
 
 	vkDestroySurfaceKHR(m_VkInstance, m_VkSurface, nullptr);
 	vkDestroyInstance(m_VkInstance, nullptr);
-}
-
-VkCommandPool GfxDevice::GetCommandPool() const
-{
-	return m_VkCommandPool;
 }
 
 VkDevice GfxDevice::GetDevice() const
@@ -137,41 +131,6 @@ VkResult GfxDevice::SetVkObjectName(VkObjectType objectType, uint64_t handle, co
 	return vkSetDebugUtilsObjectNameEXT(m_VkDevice, &ni);
 }
 
-VkCommandBuffer GfxDevice::BeginSingleTimeCmdBuffer() const
-{
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = m_VkCommandPool;
-	allocInfo.commandBufferCount = 1;
-
-	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(m_VkDevice, &allocInfo, &commandBuffer);
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-	return commandBuffer;
-}
-
-void GfxDevice::EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const
-{
-	vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(m_DeviceQueueInfo.m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(m_DeviceQueueInfo.m_GraphicsQueue);
-
-	vkFreeCommandBuffers(m_VkDevice, m_VkCommandPool, 1, &commandBuffer);
-}
-
 VkFence GfxDevice::CreateVkFence(const char* name) const
 {
 	constexpr VkFenceCreateInfo createInfo
@@ -247,15 +206,11 @@ void GfxDevice::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemo
 	vkBindBufferMemory(m_VkDevice, buffer, bufferMemory, 0);
 }
 
-void GfxDevice::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const
+void GfxDevice::CopyBuffer(VkCommandBuffer cmdBuffer, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const
 {
-	const auto cmd{ BeginSingleTimeCmdBuffer() };
-
 	VkBufferCopy copyRegion{};
 	copyRegion.size = size;
-	vkCmdCopyBuffer(cmd, srcBuffer, dstBuffer, 1, &copyRegion);
-
-	EndSingleTimeCmdBuffer(cmd);
+	vkCmdCopyBuffer(cmdBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 }
 
 void GfxDevice::CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) const
@@ -309,10 +264,8 @@ VkImageView GfxDevice::CreateImageView(VkImage image, VkFormat format, VkImageAs
 	return imageView;
 }
 
-void GfxDevice::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const
+void GfxDevice::CopyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const
 {
-	const auto cmd{ BeginSingleTimeCmdBuffer() };
-
 	VkBufferImageCopy region{};
 	region.bufferOffset = 0;
 	region.bufferRowLength = 0;
@@ -325,21 +278,17 @@ void GfxDevice::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width
 	region.imageExtent = { width, height, 1 };
 
 	vkCmdCopyBufferToImage(
-		cmd,
+		cmdBuffer,
 		buffer,
 		image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,
 		&region
 	);
-
-	EndSingleTimeCmdBuffer(cmd);
 }
 
-void GfxDevice::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) const
+void GfxDevice::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) const
 {
-	const auto cmd{ BeginSingleTimeCmdBuffer() };
-
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = oldLayout;
@@ -393,9 +342,7 @@ void GfxDevice::TransitionImageLayout(VkImage image, VkFormat format, VkImageLay
 	else
 		Logger::Get().LogError(L"Unsupported layout transition!");
 
-	vkCmdPipelineBarrier(cmd, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-	EndSingleTimeCmdBuffer(cmd);
+	vkCmdPipelineBarrier(cmdBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
 bool GfxDevice::HasExtension(const char* ext, const std::vector<VkExtensionProperties>& extensionProperties)
@@ -1009,16 +956,6 @@ SwapChainSupportDetails GfxDevice::QuerySwapChainSupport(VkPhysicalDevice device
 	}
 
 	return details;
-}
-
-void GfxDevice::CreateCommandPool()
-{
-	VkCommandPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	poolInfo.queueFamilyIndex = m_DeviceQueueInfo.m_GraphicsFamily;
-
-	HandleVkResult(vkCreateCommandPool(m_VkDevice, &poolInfo, nullptr, &m_VkCommandPool));
 }
 
 #if defined(_DEBUG)

@@ -28,16 +28,21 @@ public:
 	void FlushIndex(int index) const;
 	void InvalidateIndex(int index) const;
 
+	void DeferRelease();
+
 #if defined(_DX12)
 	[[nodiscard]] void* GetBuffer() const;
 #elif defined(_VK)
 	[[nodiscard]] VkBuffer GetBuffer() const;
+	[[nodiscard]] VkDeviceMemory GetBufferMemory() const;
 #endif
 
 private:
 #if defined(_DX12)
 
 #elif defined(_VK)
+
+	bool m_DeferredBufferRelease{};
 
 	VkBuffer m_Buffer;
 	VkDeviceMemory m_BufferMemory;

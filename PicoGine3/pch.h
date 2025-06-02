@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <deque>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <memory>

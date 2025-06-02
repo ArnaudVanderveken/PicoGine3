@@ -8,6 +8,8 @@ void Scene::Initialize()
 	using namespace Systems;
 	using namespace Components;
 
+	Renderer::Get().GetGraphicsAPI()->AcquireCommandBuffer();
+
 	// SYSTEMS
 	m_RenderSystems.emplace_back(MeshRenderer);
 
@@ -22,6 +24,7 @@ void Scene::Initialize()
 	m_Ecs.emplace<Transform>(entity, XMFLOAT3{ 2.0f, 0.0f, 0.0f }, XMFLOAT3{ 0.0f, 0.0f, 0.0f }, XMFLOAT3{ 1.0f, 1.0f, 1.0f });
 	m_Ecs.emplace<Mesh>(entity, L"Resources/Models/viking_room.obj");
 
+	Renderer::Get().GetGraphicsAPI()->SubmitCommandBuffer();
 }
 
 void Scene::Start()

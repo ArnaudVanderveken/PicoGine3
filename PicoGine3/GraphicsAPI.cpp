@@ -59,6 +59,7 @@ GraphicsAPI::GraphicsAPI() :
 	m_TimelineSemaphore{ m_pGfxDevice->CreateVkSemaphoreTimeline(m_pGfxSwapchain->GetImageCount() - 1, "GraphicsAPI::m_TimelineSemaphore") },
 	m_pShaderModulePool{ std::make_unique<ShaderModulePool>(m_pGfxDevice.get()) }
 {
+	AcquireCommandBuffer();
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
 	CreateTextureImage();
@@ -67,6 +68,7 @@ GraphicsAPI::GraphicsAPI() :
 	CreateUniformBuffers();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
+	SubmitCommandBuffer();
 
 	m_IsInitialized = true;
 }
@@ -93,6 +95,13 @@ GraphicsAPI::~GraphicsAPI()
 	
 	vkDestroyPipeline(device, m_VkGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, m_VkGraphicsPipelineLayout, nullptr);
+
+	WaitDeferredTasks();
+
+	m_pShaderModulePool.reset();
+	m_pGfxImmediateCommands.reset();
+	m_pGfxSwapchain.reset();
+	m_pGfxDevice.reset();
 }
 
 bool GraphicsAPI::IsInitialized() const
@@ -113,6 +122,11 @@ GfxImmediateCommands* GraphicsAPI::GetGfxImmediateCommands() const
 VkSemaphore GraphicsAPI::GetTimelineSemaphore() const
 {
 	return m_TimelineSemaphore;
+}
+
+const GfxCommandBuffer& GraphicsAPI::GetCurrentCommandBuffer() const
+{
+	return m_CurrentCommandBuffer;
 }
 
 void GraphicsAPI::ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const
@@ -249,11 +263,39 @@ SubmitHandle GraphicsAPI::SubmitCommandBuffer(bool present)
 			HandleVkResult(result);
 	}
 
-	//ProcessDeferredTasks(); TODO
+	ProcessDeferredTasks();
 
 	m_CurrentCommandBuffer = GfxCommandBuffer{};
 
 	return handle;
+}
+
+void GraphicsAPI::AddDeferredTask(std::packaged_task<void()>&& task, SubmitHandle handle)
+{
+	if (handle.Empty())
+		handle = m_pGfxImmediateCommands->GetNextSubmitHandle();
+	
+	m_DeferredTasks.emplace_back(std::move(task), handle);
+}
+
+void GraphicsAPI::ProcessDeferredTasks()
+{
+	while (m_DeferredTasks.empty() && m_pGfxImmediateCommands->IsReady(m_DeferredTasks.front().m_Handle, true))
+	{
+		m_DeferredTasks.front().m_Task();
+		m_DeferredTasks.pop_front();
+	}
+}
+
+void GraphicsAPI::WaitDeferredTasks()
+{
+	for (auto& task : m_DeferredTasks)
+	{
+		m_pGfxImmediateCommands->Wait(task.m_Handle);
+		task.m_Task();
+	}
+
+	m_DeferredTasks.clear();
 }
 
 void GraphicsAPI::CreateGraphicsPipeline()
@@ -553,6 +595,7 @@ void GraphicsAPI::CreateDescriptorSets()
 void GraphicsAPI::CreateTextureImage()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
 
 	int texWidth, texHeight, texChannels;
 	stbi_uc* pixels{ stbi_load("Resources/Textures/viking_room.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha) };
@@ -578,12 +621,15 @@ void GraphicsAPI::CreateTextureImage()
 
 	m_pGfxDevice->CreateImage(texWidth, texHeight, m_MipLevels, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelTextureImage, m_VkTestModelTextureImageMemory);
 
-	m_pGfxDevice->TransitionImageLayout(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_MipLevels);
-	m_pGfxDevice->CopyBufferToImage(stagingBuffer, m_VkTestModelTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	m_pGfxDevice->TransitionImageLayout(cmdBuffer, m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_MipLevels);
+	m_pGfxDevice->CopyBufferToImage(cmdBuffer, stagingBuffer, m_VkTestModelTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 	GenerateMipmaps(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_MipLevels);
 
-	vkDestroyBuffer(device, stagingBuffer, nullptr);
-	vkFreeMemory(device, stagingBufferMemory, nullptr);
+	AddDeferredTask(std::packaged_task<void()>([device = device, buffer = stagingBuffer, memory = stagingBufferMemory]()
+	{
+		vkDestroyBuffer(device, buffer, nullptr);
+		vkFreeMemory(device, memory, nullptr);
+	}));
 }
 
 void GraphicsAPI::CreateTextureImageView()
@@ -623,7 +669,7 @@ void GraphicsAPI::GenerateMipmaps(VkImage image, VkFormat format, int32_t texWid
 	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
 		Logger::Get().LogError(L"Image format does not support linear blitting for mip generation.");
 
-	const VkCommandBuffer cmd{ m_pGfxDevice->BeginSingleTimeCmdBuffer() };
+	const auto cmd{ m_CurrentCommandBuffer.GetCmdBuffer() };
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -685,8 +731,6 @@ void GraphicsAPI::GenerateMipmaps(VkImage image, VkFormat format, int32_t texWid
 	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-	m_pGfxDevice->EndSingleTimeCmdBuffer(cmd);
 }
 
 #endif

@@ -47,6 +47,8 @@ struct SwapChainSupportDetails
 	std::vector<VkPresentModeKHR> m_PresentModes{};
 };
 
+class GraphicsAPI;
+
 class GfxDevice final
 {
 public:
@@ -58,7 +60,6 @@ public:
 	GfxDevice(GfxDevice&&) noexcept = delete;
 	GfxDevice& operator=(GfxDevice&&) noexcept = delete;
 
-	[[nodiscard]] VkCommandPool GetCommandPool() const;
 	[[nodiscard]] VkDevice GetDevice() const;
 	[[nodiscard]] VkPhysicalDevice GetPhysicalDevice() const;
 	[[nodiscard]] VkPhysicalDeviceProperties GetPhysicalDeviceProperties() const;
@@ -73,19 +74,16 @@ public:
 
 	VkResult SetVkObjectName(VkObjectType objectType, uint64_t handle, const char* name) const;
 
-	[[nodiscard]] VkCommandBuffer BeginSingleTimeCmdBuffer() const;
-	void EndSingleTimeCmdBuffer(VkCommandBuffer commandBuffer) const;
-
 	[[nodiscard]] VkFence CreateVkFence(const char* name = nullptr) const;
 	[[nodiscard]] VkSemaphore CreateVkSemaphore(const char* name = nullptr) const;
 	[[nodiscard]] VkSemaphore CreateVkSemaphoreTimeline(uint64_t initValue, const char* name = nullptr) const;
 
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
-	void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
+	void CopyBuffer(VkCommandBuffer cmdBuffer, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
 	void CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) const;
 	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) const;
-	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
-	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED) const;
+	void CopyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
+	void TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED) const;
 
 private:
 
@@ -112,7 +110,6 @@ private:
 
 	DeviceQueueInfo m_DeviceQueueInfo;
 	VkDevice m_VkDevice;
-	VkCommandPool m_VkCommandPool;
 
 	uint32_t m_KhronosValidationVersion{};
 	bool m_HasEXTSwapchainColorspace{ false };
@@ -129,7 +126,6 @@ private:
 	static uint32_t FindQueueFamilyIndex(VkPhysicalDevice device, VkQueueFlags flags);
 	void CreateLogicalDevice();
 	SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device) const;
-	void CreateCommandPool();
 
 #if defined(_DEBUG)
 	VkDebugUtilsMessengerEXT m_VkDebugMessenger;

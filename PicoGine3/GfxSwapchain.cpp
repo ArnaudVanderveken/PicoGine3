@@ -161,16 +161,7 @@ VkResult GfxSwapchain::AcquireImage()
 		m_pGraphicsAPI->GetGfxImmediateCommands()->WaitSemaphore(acquireSemaphore);
 	}
 
-
-
 	return VK_SUCCESS;
-}
-
-void GfxSwapchain::ResetFrameInFlightFence() const
-{
-	const auto& device{ m_pGfxDevice->GetDevice() };
-
-	vkResetFences(device, 1, &m_PresentFences[m_CurrentFrame]);
 }
 
 VkSurfaceFormatKHR GfxSwapchain::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
@@ -417,13 +408,8 @@ void GfxSwapchain::CreateRenderPass()
 
 void GfxSwapchain::CreateSyncObjects()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
-
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
-	{
 		m_AcquireSemaphores[i] = m_pGfxDevice->CreateVkSemaphore(std::format("GfxSwapchain::m_AcquireSemaphore[%i]", i).c_str());
-		m_PresentFences[i] = m_pGfxDevice->CreateVkFence(std::format("GfxSwapchain::m_PresentFences[%i]", i).c_str());
-	}
 }
 
 #endif

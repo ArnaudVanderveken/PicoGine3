@@ -24,7 +24,10 @@ inline void HandleNonHrWin32(BOOL result)
 }
 
 #if defined(_VK)
-#include <Volk/volk.h>
+#pragma warning(push)
+#pragma warning(disable:28251)
+#include <volk.h>
+#pragma warning(pop)
 #include <vulkan/vk_enum_string_helper.h>
 inline void HandleVkResult(VkResult result)
 {

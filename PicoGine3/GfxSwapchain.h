@@ -49,11 +49,10 @@ public:
 	[[nodiscard]] VkFormat FindDepthFormat() const;
 
 	void SetCurrentFrameTimelineWaitValue(uint64_t value);
-	VkResult Present(VkSemaphore semaphore);
+	[[nodiscard]] VkResult Present(VkSemaphore semaphore);
 
 	void RecreateSwapchain();
-	[[nodiscard]] VkResult AcquireImage();
-	void ResetFrameInFlightFence() const;
+	VkResult AcquireImage();
 
 	static constexpr uint32_t sk_MaxFramesInFlight{ 3 };
 

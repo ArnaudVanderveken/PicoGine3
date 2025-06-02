@@ -54,7 +54,7 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMMAT
 GraphicsAPI::GraphicsAPI() :
 	m_IsInitialized{ false },
 	m_pGfxDevice{ std::make_unique<GfxDevice>() },
-	m_pGfxSwapchain{ std::make_unique<GfxSwapchain>(m_pGfxDevice.get()) },
+	m_pGfxSwapchain{ std::make_unique<GfxSwapchain>(this) },
 	m_pGfxImmediateCommands{ std::make_unique<GfxImmediateCommands>(m_pGfxDevice.get(), "GraphicsAPI::m_pGfxImmediateCommands") },
 	m_TimelineSemaphore{ m_pGfxDevice->CreateVkSemaphoreTimeline(m_pGfxSwapchain->GetImageCount() - 1, "GraphicsAPI::m_TimelineSemaphore") },
 	m_pShaderModulePool{ std::make_unique<ShaderModulePool>(m_pGfxDevice.get()) }
@@ -166,8 +166,6 @@ void GraphicsAPI::BeginFrame()
 
 void GraphicsAPI::EndFrame()
 {
-	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
-
 	const auto cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
 	if (cmdBuffer == VK_NULL_HANDLE)
 	{
@@ -178,15 +176,6 @@ void GraphicsAPI::EndFrame()
 	vkCmdEndRenderPass(cmdBuffer);
 
 	SubmitCommandBuffer(true);
-	//HandleVkResult(vkEndCommandBuffer(m_VkCommandBuffers[currentFrameIndex]));
-
-	//const auto vkResult{ m_pGfxSwapchain->SubmitCommandBuffers(&m_VkCommandBuffers[currentFrameIndex], 1) };
-
-	/*if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
-		m_pGfxSwapchain->RecreateSwapchain();
-
-	else if (vkResult != VK_SUCCESS)
-		HandleVkResult(vkResult);*/
 }
 
 void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const XMFLOAT4X4& transform) const
@@ -251,7 +240,14 @@ SubmitHandle GraphicsAPI::SubmitCommandBuffer(bool present)
 	const SubmitHandle handle{ m_pGfxImmediateCommands->Submit(*m_CurrentCommandBuffer.GetBufferWrapper()) };
 
 	if (present)
-		m_pGfxSwapchain->Present(m_pGfxImmediateCommands->AcquireLastSubmitSemaphore());
+	{
+		const auto result{ m_pGfxSwapchain->Present(m_pGfxImmediateCommands->AcquireLastSubmitSemaphore()) };
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+			m_pGfxSwapchain->RecreateSwapchain();
+
+		else if (result != VK_SUCCESS)
+			HandleVkResult(result);
+	}
 
 	//ProcessDeferredTasks(); TODO
 
@@ -464,7 +460,7 @@ void GraphicsAPI::CreateUniformBuffers()
 
 void GraphicsAPI::UpdatePerFrameUBO() const
 {
-	const uint32_t currentFrame{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+	const auto currentFrame{ m_pGfxSwapchain->GetCurrentFrameIndex() };
 
 	PerFrameUBO ubo{};
 

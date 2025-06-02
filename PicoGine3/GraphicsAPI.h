@@ -37,7 +37,10 @@ private:
 
 #elif defined(_VK)
 
+#pragma warning(push)
+#pragma warning(disable:28251)
 #include <volk.h>
+#pragma warning(pop)
 
 struct PerFrameUBO
 {

@@ -81,8 +81,6 @@ public:
 	[[nodiscard]] VkSemaphore GetTimelineSemaphore() const;
 	[[nodiscard]] const GfxCommandBuffer& GetCurrentCommandBuffer() const;
 
-	void ReleaseBuffer(const VkBuffer& buffer, const VkDeviceMemory& memory) const;
-
 	void BeginFrame();
 	void EndFrame();
 	void DrawMesh(uint32_t meshDataID, uint32_t materialID, const XMFLOAT4X4& transform) const;
@@ -129,8 +127,6 @@ private:
 	void CreateTextureImage();
 	void CreateTextureImageView();
 	void CreateTextureSampler();
-	
-	void GenerateMipmaps(VkImage image, VkFormat format, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) const;
 };
 
 #endif

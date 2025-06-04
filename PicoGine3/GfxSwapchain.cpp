@@ -11,12 +11,10 @@
 
 #elif defined(_VK)
 
-GfxSwapchain::GfxSwapchain(GraphicsAPI* graphicsAPI) :
-	m_pGraphicsAPI{ graphicsAPI },
-	m_pGfxDevice{ graphicsAPI->GetGfxDevice() }
+GfxSwapchain::GfxSwapchain(GraphicsAPI* pGraphicsAPI) :
+	m_pGraphicsAPI{ pGraphicsAPI }
 {
 	CreateSwapchain();
-	CreateSwapchainImageViews();
 	CreateDepthResources();
 	CreateRenderPass();
 	CreateFrameBuffers();
@@ -25,7 +23,7 @@ GfxSwapchain::GfxSwapchain(GraphicsAPI* graphicsAPI) :
 
 GfxSwapchain::~GfxSwapchain()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
 		vkDestroySemaphore(device, m_AcquireSemaphores[i], nullptr);
@@ -89,7 +87,7 @@ uint64_t GfxSwapchain::GetCurrentFrameIndex() const
 
 VkFormat GfxSwapchain::FindDepthFormat() const
 {
-	return m_pGfxDevice->FindSupportedFormat({ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+	return m_pGraphicsAPI->GetGfxDevice()->FindSupportedFormat({ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
 void GfxSwapchain::SetCurrentFrameTimelineWaitValue(uint64_t value)
@@ -99,7 +97,7 @@ void GfxSwapchain::SetCurrentFrameTimelineWaitValue(uint64_t value)
 
 VkResult GfxSwapchain::Present(VkSemaphore semaphore)
 {
-	const auto& deviceQueueInfo{ m_pGfxDevice->GetDeviceQueueInfo() };
+	const auto& deviceQueueInfo{ m_pGraphicsAPI->GetGfxDevice()->GetDeviceQueueInfo() };
 
 	const VkPresentInfoKHR presentInfo
 	{
@@ -123,19 +121,19 @@ VkResult GfxSwapchain::Present(VkSemaphore semaphore)
 
 void GfxSwapchain::RecreateSwapchain()
 {
-	vkDeviceWaitIdle(m_pGfxDevice->GetDevice());
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+	vkDeviceWaitIdle(device);
 
 	CleanupSwapchain();
 
 	CreateSwapchain();
-	CreateSwapchainImageViews();
 	CreateDepthResources();
 	CreateFrameBuffers();
 }
 
 VkResult GfxSwapchain::AcquireImage()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
 	if (m_GetNextImage)
 	{
@@ -160,6 +158,8 @@ VkResult GfxSwapchain::AcquireImage()
 		m_GetNextImage = false;
 		m_pGraphicsAPI->GetGfxImmediateCommands()->WaitSemaphore(acquireSemaphore);
 	}
+
+	// TODO: Transition image layout for presentation
 
 	return VK_SUCCESS;
 }
@@ -210,17 +210,18 @@ VkExtent2D GfxSwapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabi
 
 void GfxSwapchain::CreateSwapchain()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
-	const auto& physicalDevice{ m_pGfxDevice->GetPhysicalDevice() };
-	const auto& deviceQueueInfo{ m_pGfxDevice->GetDeviceQueueInfo() };
-	const auto& surface{ m_pGfxDevice->GetSurface() };
+	const auto& gfxDevice{ m_pGraphicsAPI->GetGfxDevice() };
+	const auto& device{ gfxDevice->GetDevice() };
+	const auto& physicalDevice{ gfxDevice->GetPhysicalDevice() };
+	const auto& deviceQueueInfo{ gfxDevice->GetDeviceQueueInfo() };
+	const auto& surface{ gfxDevice->GetSurface() };
 
 	VkBool32 queueFamilySupportsPresentation{};
 	HandleVkResult(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, deviceQueueInfo.m_GraphicsFamily, surface, &queueFamilySupportsPresentation));
 	if (!queueFamilySupportsPresentation)
 		Logger::Get().LogError(L"The queue family used with the swapchain does not support presentation.");
 
-	const SwapChainSupportDetails swapChainSupport{ m_pGfxDevice->SwapChainSupport()};
+	const SwapChainSupportDetails swapChainSupport{ gfxDevice->SwapChainSupport()};
 
 	const VkSurfaceFormatKHR surfaceFormat{ ChooseSwapSurfaceFormat(swapChainSupport.m_Formats) };
 	const VkPresentModeKHR presentMode{ ChooseSwapPresentMode(swapChainSupport.m_PresentModes) };
@@ -272,34 +273,74 @@ void GfxSwapchain::CreateSwapchain()
 	if (oldSwapchain != VK_NULL_HANDLE)
 		vkDestroySwapchainKHR(device, oldSwapchain, nullptr);
 
-	vkGetSwapchainImagesKHR(device, m_VkSwapChain, &imageCount, nullptr);
-	m_VkSwapChainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(device, m_VkSwapChain, &imageCount, m_VkSwapChainImages.data());
+	std::vector<VkImage> swapchainImages;
+	HandleVkResult(vkGetSwapchainImagesKHR(device, m_VkSwapChain, &imageCount, nullptr));
+	swapchainImages.resize(imageCount);
+	HandleVkResult(vkGetSwapchainImagesKHR(device, m_VkSwapChain, &imageCount, swapchainImages.data()));
 
 	m_VkSwapChainColorFormat = surfaceFormat.format;
 	m_VkSwapChainExtent = extent;
-}
 
-void GfxSwapchain::CreateSwapchainImageViews()
-{
-	m_VkSwapChainImageViews.resize(m_VkSwapChainImages.size());
+	char debugNameImage[256]{};
+	char debugNameImageView[256]{};
 
-	for (size_t i{}; i < m_VkSwapChainImages.size(); ++i)
-		m_VkSwapChainImageViews[i] = m_pGfxDevice->CreateImageView(m_VkSwapChainImages[i], m_VkSwapChainColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	for (uint32_t i{}; i < imageCount; ++i)
+	{
+		snprintf(debugNameImage, sizeof(debugNameImage) - 1, "Image: swapchain %u", i);
+		snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: swapchain %u", i);
+		
+		GfxImage image{ m_pGraphicsAPI };
+		image.m_VkImage = swapchainImages[i];
+		image.m_VkUsageFlags = usageFlags;
+		image.m_VkExtent = VkExtent3D{ .width = m_VkSwapChainExtent.width, .height = m_VkSwapChainExtent.height, .depth = 1 };
+		image.m_VkType = VK_IMAGE_TYPE_2D;
+		image.m_VkImageFormat = m_VkSwapChainColorFormat;
+		image.m_IsSwapchainImage = true;
+		image.m_IsOwningVkImage = false;
+		image.m_IsDepthFormat = GfxImage::IsDepthFormat(m_VkSwapChainColorFormat);
+		image.m_IsStencilFormat = GfxImage::IsStencilFormat(m_VkSwapChainColorFormat);
+
+		HandleVkResult(gfxDevice->SetVkObjectName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(image.m_VkImage), debugNameImage));
+
+		image.m_ImageView = image.CreateImageView(gfxDevice,
+												  VK_IMAGE_VIEW_TYPE_2D,
+												  m_VkSwapChainColorFormat,
+												  VK_IMAGE_ASPECT_COLOR_BIT,
+												  0,
+												  VK_REMAINING_MIP_LEVELS,
+												  0,
+												  1,
+												  {},
+												  nullptr,
+												  debugNameImageView);
+	}
 }
 
 void GfxSwapchain::CreateDepthResources()
 {
-	m_VkDepthImages.resize(m_VkSwapChainImages.size());
-	m_VkDepthImagesMemory.resize(m_VkSwapChainImages.size());
-	m_VkDepthImageViews.resize(m_VkSwapChainImages.size());
-
 	const VkFormat depthFormat{ FindDepthFormat() };
+	m_DepthImages.reserve(m_SwapChainImages.size());
 
-	for (size_t i{}; i < m_VkSwapChainImages.size(); ++i)
+	char debugNameImageView[256]{};
+
+	for (size_t i{}; i < m_SwapChainImages.size(); ++i)
 	{
-		m_pGfxDevice->CreateImage(m_VkSwapChainExtent.width, m_VkSwapChainExtent.height, 1, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkDepthImages[i], m_VkDepthImagesMemory[i]);
-		m_VkDepthImageViews[i] = m_pGfxDevice->CreateImageView(m_VkDepthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+		snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: swapchain depth %u", i);
+
+		m_DepthImages.emplace_back(GfxImage{ m_pGraphicsAPI });
+		GfxImage& image{ m_DepthImages[i] };
+		m_pGraphicsAPI->GetGfxDevice()->CreateImage(m_VkSwapChainExtent.width, m_VkSwapChainExtent.height, 1, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image.m_VkImage, image.m_VkMemory[0]);
+		image.m_ImageView = image.CreateImageView(m_pGraphicsAPI->GetGfxDevice(),
+												  VK_IMAGE_VIEW_TYPE_2D,
+												  depthFormat,
+												  VK_IMAGE_ASPECT_DEPTH_BIT,
+												  0,
+												  1,
+												  0,
+												  1,
+												  {},
+												  nullptr,
+												  debugNameImageView);
 	}
 }
 
@@ -329,22 +370,15 @@ void GfxSwapchain::CreateFrameBuffers()
 	}
 }
 
-void GfxSwapchain::CleanupSwapchain() const
+void GfxSwapchain::CleanupSwapchain()
 {
 	const auto& device{ m_pGfxDevice->GetDevice() };
 
 	for (const auto framebuffer : m_VkFrameBuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
 
-	for (size_t i{}; i < m_VkDepthImages.size(); ++i)
-	{
-		vkDestroyImageView(device, m_VkDepthImageViews[i], nullptr);
-		vkDestroyImage(device, m_VkDepthImages[i], nullptr);
-		vkFreeMemory(device, m_VkDepthImagesMemory[i], nullptr);
-	}
-
-	for (const auto imageView : m_VkSwapChainImageViews)
-		vkDestroyImageView(device, imageView, nullptr);
+	m_DepthImages.clear();
+	m_SwapChainImages.clear();
 }
 
 void GfxSwapchain::CreateRenderPass()

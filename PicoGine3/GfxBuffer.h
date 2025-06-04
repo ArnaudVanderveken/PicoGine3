@@ -2,12 +2,12 @@
 #define GFXBUFFER_H
 
 
-#include "GfxDevice.h"
+class GraphicsAPI;
 
 class GfxBuffer final
 {
 public:
-	explicit GfxBuffer(GfxDevice* pDevice, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset = 0);
+	explicit GfxBuffer(GraphicsAPI* pGraphicsAPI, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset = 0);
 	~GfxBuffer();
 
 	GfxBuffer(const GfxBuffer& other) noexcept = delete;
@@ -28,8 +28,6 @@ public:
 	void FlushIndex(int index) const;
 	void InvalidateIndex(int index) const;
 
-	void DeferRelease();
-
 #if defined(_DX12)
 	[[nodiscard]] void* GetBuffer() const;
 #elif defined(_VK)
@@ -42,15 +40,13 @@ private:
 
 #elif defined(_VK)
 
-	bool m_DeferredBufferRelease{};
-
 	VkBuffer m_Buffer;
 	VkDeviceMemory m_BufferMemory;
 	void* m_pMappedMemory;
 
 #endif
 
-	GfxDevice* m_pGfxDevice;
+	GraphicsAPI* m_pGraphicsAPI;
 
 	size_t m_ElementStride;
 	size_t m_ElementCount;

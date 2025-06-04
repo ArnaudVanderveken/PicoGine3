@@ -1,5 +1,6 @@
 #ifndef GFXSWAPCHAIN_H
 #define GFXSWAPCHAIN_H
+#include "GfxImage.h"
 
 #if defined(_DX)
 
@@ -27,7 +28,7 @@ class GfxDevice;
 class GfxSwapchain final
 {
 public:
-	explicit GfxSwapchain(GraphicsAPI* graphicsAPI);
+	explicit GfxSwapchain(GraphicsAPI* pGraphicsAPI);
 	~GfxSwapchain();
 
 	GfxSwapchain(const GfxSwapchain&) noexcept = delete;
@@ -58,7 +59,6 @@ public:
 
 private:
 	GraphicsAPI* m_pGraphicsAPI;
-	GfxDevice* m_pGfxDevice;
 
 	VkFormat m_VkSwapChainColorFormat;
 	VkFormat m_VkSwapChainDepthFormat;
@@ -68,11 +68,8 @@ private:
 	VkRenderPass m_VkRenderPass{ VK_NULL_HANDLE };
 
 	VkSwapchainKHR m_VkSwapChain{ VK_NULL_HANDLE };
-	std::vector<VkImage> m_VkSwapChainImages;
-	std::vector<VkImageView> m_VkSwapChainImageViews;
-	std::vector<VkImage> m_VkDepthImages;
-	std::vector<VkDeviceMemory> m_VkDepthImagesMemory;
-	std::vector<VkImageView> m_VkDepthImageViews;
+	std::vector<GfxImage> m_SwapChainImages;
+	std::vector<GfxImage> m_DepthImages;
 
 	std::array<VkSemaphore, sk_MaxFramesInFlight> m_AcquireSemaphores;
 	std::array<uint64_t, sk_MaxFramesInFlight> m_TimelineWaitValues;
@@ -87,10 +84,9 @@ private:
 	static VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
 	void CreateSwapchain();
-	void CreateSwapchainImageViews();
 	void CreateDepthResources();
 	void CreateFrameBuffers();
-	void CleanupSwapchain() const;
+	void CleanupSwapchain();
 	void CreateRenderPass();
 	void CreateSyncObjects();
 };

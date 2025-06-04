@@ -1,10 +1,12 @@
 #include "pch.h"
 #include "GfxBuffer.h"
 
+#include "GraphicsAPI.h"
+
 #if defined(_DX12)
 
 GfxBuffer::GfxBuffer(GfxDevice* pDevice, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset) :
-	m_pGfxDevice{ pDevice },
+	m_pGraphicsAPI{ pDevice },
 	m_ElementStride{ elementStride },
 	m_ElementCount{ elementCount },
 	m_AlignmentSize{ GetAlignment(elementStride, minAlignmentOffset) },
@@ -14,7 +16,7 @@ GfxBuffer::GfxBuffer(GfxDevice* pDevice, size_t elementStride, size_t elementCou
 {
 	m_AlignmentSize = GetAlignment(elementStride, minAlignmentOffset);
 	m_BufferSize = elementCount * m_AlignmentSize;
-	//m_pGfxDevice.CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
+	//m_pGraphicsAPI.CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
 }
 
 GfxBuffer::~GfxBuffer()
@@ -40,43 +42,50 @@ void* GetBuffer()
 
 #elif defined(_VK)
 
-GfxBuffer::GfxBuffer(GfxDevice* pDevice, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset) :
+GfxBuffer::GfxBuffer(GraphicsAPI* pGraphicsAPI, size_t elementStride, size_t elementCount, uint32_t usageFlags, uint32_t memoryFlags, size_t minAlignmentOffset) :
 	m_pMappedMemory{ nullptr },
-	m_pGfxDevice{ pDevice },
+	m_pGraphicsAPI{ pGraphicsAPI},
 	m_ElementStride{ elementStride },
 	m_ElementCount{ elementCount },
 	m_UsageFlags{ usageFlags },
 	m_MemoryFlags{ memoryFlags }
 {
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice() };
+
 	m_AlignmentSize = GetAlignment(elementStride, minAlignmentOffset);
 	m_BufferSize = elementCount * m_AlignmentSize;
-	m_pGfxDevice->CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
+	device->CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
 }
 
 GfxBuffer::~GfxBuffer()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
 	Unmap();
 
-	if (!m_DeferredBufferRelease)
+	m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, buffer = m_Buffer, memory = m_BufferMemory]()
 	{
-		vkDestroyBuffer(device, m_Buffer, nullptr);
-		vkFreeMemory(device, m_BufferMemory, nullptr);
-	}
+		vkDestroyBuffer(device, buffer, nullptr);
+		vkFreeMemory(device, memory, nullptr);
+	}));
+	
 }
 
 void GfxBuffer::Map(size_t size, size_t offset)
 {
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
 	const size_t mappedSize{ std::min(size, m_BufferSize) };
-	HandleVkResult(vkMapMemory(m_pGfxDevice->GetDevice(), m_BufferMemory, offset, mappedSize, 0, &m_pMappedMemory));
+	HandleVkResult(vkMapMemory(device, m_BufferMemory, offset, mappedSize, 0, &m_pMappedMemory));
 }
 
 void GfxBuffer::Unmap()
 {
 	if (m_pMappedMemory)
 	{
-		vkUnmapMemory(m_pGfxDevice->GetDevice(), m_BufferMemory);
+		const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
+		vkUnmapMemory(device, m_BufferMemory);
 		m_pMappedMemory = nullptr;
 	}
 }
@@ -103,22 +112,26 @@ void GfxBuffer::WriteToBuffer(const void* data, size_t size, size_t offset) cons
 
 void GfxBuffer::Flush(size_t size, size_t offset) const
 {
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
 	VkMappedMemoryRange mappedRange{};
 	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
 	mappedRange.memory = m_BufferMemory;
 	mappedRange.offset = offset;
 	mappedRange.size = size;
-	HandleVkResult(vkFlushMappedMemoryRanges(m_pGfxDevice->GetDevice(), 1, &mappedRange));
+	HandleVkResult(vkFlushMappedMemoryRanges(device, 1, &mappedRange));
 }
 
 void GfxBuffer::Invalidate(size_t size, size_t offset) const
 {
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
 	VkMappedMemoryRange mappedRange{};
 	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
 	mappedRange.memory = m_BufferMemory;
 	mappedRange.offset = offset;
 	mappedRange.size = size;
-	HandleVkResult(vkInvalidateMappedMemoryRanges(m_pGfxDevice->GetDevice(), 1, &mappedRange));
+	HandleVkResult(vkInvalidateMappedMemoryRanges(device, 1, &mappedRange));
 }
 
 void GfxBuffer::WriteToIndex(const void* data, int index) const

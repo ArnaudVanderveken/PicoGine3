@@ -19,6 +19,7 @@
 #include <limits>
 #include <memory>
 #include <map>
+#include <queue>
 #include <set>
 #include <string>
 #include <unordered_map>

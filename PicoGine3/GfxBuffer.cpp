@@ -149,11 +149,6 @@ void GfxBuffer::InvalidateIndex(int index) const
 	Invalidate(m_AlignmentSize, index * m_AlignmentSize);
 }
 
-void GfxBuffer::DeferRelease()
-{
-	m_DeferredBufferRelease = true;
-}
-
 VkBuffer GfxBuffer::GetBuffer() const
 {
 	return m_Buffer;

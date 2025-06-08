@@ -46,13 +46,13 @@ VkRenderPass GfxSwapchain::GetRenderPass() const
 
 VkImageView GfxSwapchain::GetImageView(int index) const
 {
-	assert(index >= 0 && index < m_VkSwapChainImageViews.size() && L"Invalid swap chain image view index.");
-	return m_VkSwapChainImageViews[index];
+	assert(index >= 0 && index < m_SwapChainImages.size() && L"Invalid swap chain image view index.");
+	return m_SwapChainImages[index].m_ImageView;
 }
 
 size_t GfxSwapchain::GetImageCount() const
 {
-	return m_VkSwapChainImages.size();
+	return m_SwapChainImages.size();
 }
 
 VkFormat GfxSwapchain::GetSwapChainImageFormat() const
@@ -131,7 +131,7 @@ void GfxSwapchain::RecreateSwapchain()
 	CreateFrameBuffers();
 }
 
-VkResult GfxSwapchain::AcquireImage()
+GfxImage* GfxSwapchain::AcquireImage()
 {
 	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
@@ -159,9 +159,7 @@ VkResult GfxSwapchain::AcquireImage()
 		m_pGraphicsAPI->GetGfxImmediateCommands()->WaitSemaphore(acquireSemaphore);
 	}
 
-	// TODO: Transition image layout for presentation
-
-	return VK_SUCCESS;
+	return &m_SwapChainImages[m_CurrentFrameSwapchainImageIndex];
 }
 
 VkSurfaceFormatKHR GfxSwapchain::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
@@ -284,12 +282,16 @@ void GfxSwapchain::CreateSwapchain()
 	char debugNameImage[256]{};
 	char debugNameImageView[256]{};
 
+	m_SwapChainImages.reserve(imageCount);
+
 	for (uint32_t i{}; i < imageCount; ++i)
 	{
 		snprintf(debugNameImage, sizeof(debugNameImage) - 1, "Image: swapchain %u", i);
 		snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: swapchain %u", i);
+
+		m_SwapChainImages.emplace_back(m_pGraphicsAPI);
+		GfxImage& image{ m_SwapChainImages[i] };
 		
-		GfxImage image{ m_pGraphicsAPI };
 		image.m_VkImage = swapchainImages[i];
 		image.m_VkUsageFlags = usageFlags;
 		image.m_VkExtent = VkExtent3D{ .width = m_VkSwapChainExtent.width, .height = m_VkSwapChainExtent.height, .depth = 1 };
@@ -301,18 +303,6 @@ void GfxSwapchain::CreateSwapchain()
 		image.m_IsStencilFormat = GfxImage::IsStencilFormat(m_VkSwapChainColorFormat);
 
 		HandleVkResult(gfxDevice->SetVkObjectName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(image.m_VkImage), debugNameImage));
-
-		image.m_ImageView = image.CreateImageView(gfxDevice,
-												  VK_IMAGE_VIEW_TYPE_2D,
-												  m_VkSwapChainColorFormat,
-												  VK_IMAGE_ASPECT_COLOR_BIT,
-												  0,
-												  VK_REMAINING_MIP_LEVELS,
-												  0,
-												  1,
-												  {},
-												  nullptr,
-												  debugNameImageView);
 	}
 }
 
@@ -325,36 +315,33 @@ void GfxSwapchain::CreateDepthResources()
 
 	for (size_t i{}; i < m_SwapChainImages.size(); ++i)
 	{
-		snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: swapchain depth %u", i);
+		snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: swapchain depth %u", static_cast<uint32_t>(i));
 
-		m_DepthImages.emplace_back(GfxImage{ m_pGraphicsAPI });
+		m_DepthImages.emplace_back(m_pGraphicsAPI);
 		GfxImage& image{ m_DepthImages[i] };
-		m_pGraphicsAPI->GetGfxDevice()->CreateImage(m_VkSwapChainExtent.width, m_VkSwapChainExtent.height, 1, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image.m_VkImage, image.m_VkMemory[0]);
-		image.m_ImageView = image.CreateImageView(m_pGraphicsAPI->GetGfxDevice(),
-												  VK_IMAGE_VIEW_TYPE_2D,
-												  depthFormat,
-												  VK_IMAGE_ASPECT_DEPTH_BIT,
-												  0,
-												  1,
-												  0,
-												  1,
-												  {},
-												  nullptr,
-												  debugNameImageView);
+
+		image.m_VkUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		image.m_VkExtent = VkExtent3D{ m_VkSwapChainExtent.width, m_VkSwapChainExtent.height, 1 };
+		image.m_VkType = VK_IMAGE_TYPE_2D;
+		image.m_VkImageFormat = depthFormat;
+		image.m_IsDepthFormat = GfxImage::IsDepthFormat(depthFormat);
+		image.m_IsStencilFormat = GfxImage::IsStencilFormat(depthFormat);
+
+		m_pGraphicsAPI->GetGfxDevice()->CreateImage(image.m_VkExtent.width, image.m_VkExtent.height, image.m_NumLevels, image.m_VkImageFormat, VK_IMAGE_TILING_OPTIMAL, image.m_VkUsageFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image.m_VkImage, image.m_VkMemory[0]);
 	}
 }
 
 void GfxSwapchain::CreateFrameBuffers()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
-	m_VkFrameBuffers.resize(m_VkSwapChainImageViews.size());
+	m_VkFrameBuffers.resize(m_SwapChainImages.size());
 
-	for (size_t i{}; i < m_VkSwapChainImageViews.size(); ++i) {
+	for (size_t i{}; i < m_SwapChainImages.size(); ++i) {
 		const std::array<VkImageView, 2> attachments
 		{
-			m_VkSwapChainImageViews[i],
-			m_VkDepthImageViews[i]
+			m_SwapChainImages[i].GetOrCreateVkImageViewForFramebuffer(0, 0),
+			m_DepthImages[i].GetOrCreateVkImageViewForFramebuffer(0, 0)
 		};
 
 		VkFramebufferCreateInfo framebufferInfo{};
@@ -372,7 +359,7 @@ void GfxSwapchain::CreateFrameBuffers()
 
 void GfxSwapchain::CleanupSwapchain()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
 	for (const auto framebuffer : m_VkFrameBuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -383,7 +370,7 @@ void GfxSwapchain::CleanupSwapchain()
 
 void GfxSwapchain::CreateRenderPass()
 {
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
 	VkAttachmentDescription colorAttachment{};
 	colorAttachment.format = m_VkSwapChainColorFormat;
@@ -443,7 +430,7 @@ void GfxSwapchain::CreateRenderPass()
 void GfxSwapchain::CreateSyncObjects()
 {
 	for (size_t i{}; i < sk_MaxFramesInFlight; ++i)
-		m_AcquireSemaphores[i] = m_pGfxDevice->CreateVkSemaphore(std::format("GfxSwapchain::m_AcquireSemaphore[%i]", i).c_str());
+		m_AcquireSemaphores[i] = m_pGraphicsAPI->GetGfxDevice()->CreateVkSemaphore(std::format("GfxSwapchain::m_AcquireSemaphore[%i]", i).c_str());
 }
 
 #endif

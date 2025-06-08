@@ -57,15 +57,12 @@ GraphicsAPI::GraphicsAPI() :
 	m_pGfxSwapchain{ std::make_unique<GfxSwapchain>(this) },
 	m_pGfxImmediateCommands{ std::make_unique<GfxImmediateCommands>(m_pGfxDevice.get(), "GraphicsAPI::m_pGfxImmediateCommands") },
 	m_TimelineSemaphore{ m_pGfxDevice->CreateVkSemaphoreTimeline(m_pGfxSwapchain->GetImageCount() - 1, "GraphicsAPI::m_TimelineSemaphore") },
-	m_pShaderModulePool{ std::make_unique<ShaderModulePool>(m_pGfxDevice.get()) },
-	m_ImagePool{ std::function<void(GfxImage)>{[](GfxImage img){}}}
+	m_pShaderModulePool{ std::make_unique<ShaderModulePool>(m_pGfxDevice.get()) }
 {
 	AcquireCommandBuffer();
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
 	CreateTextureImage();
-	CreateTextureImageView();
-	CreateTextureSampler();
 	CreateUniformBuffers();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
@@ -80,13 +77,11 @@ GraphicsAPI::~GraphicsAPI()
 	vkDeviceWaitIdle(device);
 
 	ResourceManager::Get().ReleaseGPUBuffers();
+	m_pTestModelTextureImage.reset();
 
 	vkDestroySemaphore(device, m_TimelineSemaphore, nullptr);
 
 	vkDestroySampler(device, m_VkTestModelTextureSampler, nullptr);
-	vkDestroyImageView(device, m_VkTestModelTextureImageView, nullptr);
-	vkDestroyImage(device, m_VkTestModelTextureImage, nullptr);
-	vkFreeMemory(device, m_VkTestModelTextureImageMemory, nullptr);
 
 	m_PerFrameUBO.clear();
 
@@ -97,11 +92,12 @@ GraphicsAPI::~GraphicsAPI()
 	vkDestroyPipeline(device, m_VkGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, m_VkGraphicsPipelineLayout, nullptr);
 
+	m_pShaderModulePool.reset();
+	m_pGfxSwapchain.reset();
+
 	WaitDeferredTasks();
 
-	m_pShaderModulePool.reset();
 	m_pGfxImmediateCommands.reset();
-	m_pGfxSwapchain.reset();
 	m_pGfxDevice.reset();
 }
 
@@ -189,7 +185,7 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 {
 	const auto& resourceManager{ ResourceManager::Get() };
 	const auto& meshData{ resourceManager.GetMeshData(meshDataID) };
-	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() % GfxSwapchain::sk_MaxFramesInFlight };
 
 	const auto cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
 	if (cmdBuffer == VK_NULL_HANDLE)
@@ -238,7 +234,11 @@ SubmitHandle GraphicsAPI::SubmitCommandBuffer(bool present)
 
 	if (present)
 	{
-		m_pGfxSwapchain->AcquireImage();
+		const auto image{ m_pGfxSwapchain->AcquireImage() };
+		image->TransitionLayout(cmdBuffer,
+								VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+								VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS });
+
 		const uint64_t signalValue{ m_pGfxSwapchain->GetCurrentFrameIndex() + m_pGfxSwapchain->GetImageCount() };
 		m_pGfxSwapchain->SetCurrentFrameTimelineWaitValue(signalValue);
 		m_pGfxImmediateCommands->SignalSemaphore(m_TimelineSemaphore, signalValue);
@@ -495,7 +495,7 @@ void GraphicsAPI::CreateUniformBuffers()
 
 void GraphicsAPI::UpdatePerFrameUBO() const
 {
-	const auto currentFrame{ m_pGfxSwapchain->GetCurrentFrameIndex() };
+	const auto currentFrame{ m_pGfxSwapchain->GetCurrentFrameIndex() % GfxSwapchain::sk_MaxFramesInFlight };
 
 	PerFrameUBO ubo{};
 
@@ -560,7 +560,7 @@ void GraphicsAPI::CreateDescriptorSets()
 
 		VkDescriptorImageInfo imageInfo{};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = m_VkTestModelTextureImageView;
+		imageInfo.imageView = m_pTestModelTextureImage->m_ImageView;
 		imageInfo.sampler = m_VkTestModelTextureSampler;
 
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
@@ -597,42 +597,54 @@ void GraphicsAPI::CreateTextureImage()
 	if (!pixels)
 		Logger::Get().LogError(L"failed to load texture image!");
 
-	m_MipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+	const uint32_t mipLevels{ static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1 };
 
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	m_pGfxDevice->CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-	void* data;
-	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-#pragma warning(disable : 6387) // 'pixels' can never be nullptr here 
-	memcpy(data, pixels, imageSize);
-#pragma warning(default : 6387)
-	vkUnmapMemory(device, stagingBufferMemory);
+	GfxBuffer stagingBuffer{ this, imageSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+	stagingBuffer.Map();
+	stagingBuffer.WriteToBuffer(pixels);
+	stagingBuffer.Unmap();
 
 	stbi_image_free(pixels);
 
-	m_pGfxDevice->CreateImage(texWidth, texHeight, m_MipLevels, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_VkTestModelTextureImage, m_VkTestModelTextureImageMemory);
+	m_pTestModelTextureImage = std::make_unique<GfxImage>(this);
+	m_pTestModelTextureImage->m_VkUsageFlags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	m_pTestModelTextureImage->m_VkExtent = VkExtent3D{ static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1 };
+	m_pTestModelTextureImage->m_VkType = VK_IMAGE_TYPE_2D;
+	m_pTestModelTextureImage->m_VkImageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	m_pTestModelTextureImage->m_NumLevels = mipLevels;
+	vkGetPhysicalDeviceFormatProperties(m_pGfxDevice->GetPhysicalDevice(), m_pTestModelTextureImage->m_VkImageFormat, &m_pTestModelTextureImage->m_VkFormatProperties);
 
-	m_pGfxDevice->TransitionImageLayout(cmdBuffer, m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_MipLevels);
-	m_pGfxDevice->CopyBufferToImage(cmdBuffer, stagingBuffer, m_VkTestModelTextureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	GenerateMipmaps(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, m_MipLevels);
+	m_pGfxDevice->CreateImage(m_pTestModelTextureImage->m_VkExtent.width,
+							  m_pTestModelTextureImage->m_VkExtent.height,
+							  m_pTestModelTextureImage->m_NumLevels,
+							  m_pTestModelTextureImage->m_VkImageFormat,
+							  VK_IMAGE_TILING_OPTIMAL,
+							  m_pTestModelTextureImage->m_VkUsageFlags,
+							  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+							  m_pTestModelTextureImage->m_VkImage,
+							  m_pTestModelTextureImage->m_VkMemory[0]);
 
-	AddDeferredTask(std::packaged_task<void()>([device = device, buffer = stagingBuffer, memory = stagingBufferMemory]()
-	{
-		vkDestroyBuffer(device, buffer, nullptr);
-		vkFreeMemory(device, memory, nullptr);
-	}));
-}
+	m_pTestModelTextureImage->m_ImageView = m_pTestModelTextureImage->CreateImageView(VK_IMAGE_VIEW_TYPE_2D,
+																					  m_pTestModelTextureImage->m_VkImageFormat,
+																					  VK_IMAGE_ASPECT_COLOR_BIT,
+																					  0,
+																					  m_pTestModelTextureImage->m_NumLevels);
 
-void GraphicsAPI::CreateTextureImageView()
-{
-	m_VkTestModelTextureImageView = m_pGfxDevice->CreateImageView(m_VkTestModelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_MipLevels);
-}
+	m_pTestModelTextureImage->TransitionLayout(cmdBuffer,
+											   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+											   VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS });
 
-void GraphicsAPI::CreateTextureSampler()
-{
-	const auto& device{ m_pGfxDevice->GetDevice() };
+	m_pGfxDevice->CopyBufferToImage(cmdBuffer, 
+									stagingBuffer.GetBuffer(),
+									m_pTestModelTextureImage->m_VkImage,
+									m_pTestModelTextureImage->m_VkExtent.width,
+									m_pTestModelTextureImage->m_VkExtent.height);
+
+	m_pTestModelTextureImage->TransitionLayout(cmdBuffer,
+											   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+											   VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS });
+
+	m_pTestModelTextureImage->GenerateMipmap(cmdBuffer);
 
 	VkSamplerCreateInfo samplerInfo{};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -650,7 +662,7 @@ void GraphicsAPI::CreateTextureSampler()
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	samplerInfo.mipLodBias = 0.0f;
 	samplerInfo.minLod = 0.0f;
-	samplerInfo.maxLod = static_cast<float>(m_MipLevels);
+	samplerInfo.maxLod = static_cast<float>(m_pTestModelTextureImage->m_NumLevels);
 
 	HandleVkResult(vkCreateSampler(device, &samplerInfo, nullptr, &m_VkTestModelTextureSampler));
 }

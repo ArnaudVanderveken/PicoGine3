@@ -53,7 +53,7 @@ public:
 	[[nodiscard]] VkResult Present(VkSemaphore semaphore);
 
 	void RecreateSwapchain();
-	VkResult AcquireImage();
+	GfxImage* AcquireImage();
 
 	static constexpr uint32_t sk_MaxFramesInFlight{ 3 };
 

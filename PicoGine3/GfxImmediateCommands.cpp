@@ -133,7 +133,7 @@ SubmitHandle GfxImmediateCommands::Submit(const CommandBufferWrapper& buffer)
 		waitSemaphores[numWaitSemaphores++] = m_WaitSemaphore;
 	
 	if (m_LastSubmitSemaphore.semaphore)
-		waitSemaphores[numWaitSemaphores] = m_LastSubmitSemaphore;
+		waitSemaphores[numWaitSemaphores++] = m_LastSubmitSemaphore;
 	
 	VkSemaphoreSubmitInfo signalSemaphores[]
 	{

@@ -14,12 +14,15 @@ GfxImage::~GfxImage()
 {
 	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
 
-	m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = m_ImageView]()
+	if (m_ImageView != VK_NULL_HANDLE)
 	{
-		vkDestroyImageView(device, imageView, nullptr);
-	}));
+		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = m_ImageView]()
+		{
+			vkDestroyImageView(device, imageView, nullptr);
+		}));
+	}
 
-	if (m_ImageViewStorage)
+	if (m_ImageViewStorage != VK_NULL_HANDLE)
 	{
 		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = m_ImageViewStorage]()
 		{
@@ -42,7 +45,7 @@ GfxImage::~GfxImage()
 		}
 	}
 
-	if (m_IsOwningVkImage)
+	if (!m_IsOwningVkImage)
 		return;
 
 	/*if (LVK_VULKAN_USE_VMA && tex->vkMemory_[1] == VK_NULL_HANDLE)
@@ -73,6 +76,87 @@ GfxImage::~GfxImage()
 			
 		}));
 	/*}*/
+}
+
+GfxImage::GfxImage(GfxImage&& other) noexcept :
+	m_VkImage{ other.m_VkImage },
+	m_VkFormatProperties{ other.m_VkFormatProperties },
+	//m_VmaAllocation{ other.m_VmaAllocation },
+	m_VkExtent{ other.m_VkExtent },
+	m_VkType{ other.m_VkType },
+	m_VkImageFormat{ other.m_VkImageFormat },
+	m_VkSamples{ other.m_VkSamples },
+	m_MappedPtr{ other.m_MappedPtr },
+	m_IsSwapchainImage{ other.m_IsSwapchainImage },
+	m_IsOwningVkImage{ other.m_IsOwningVkImage },
+	m_IsResolveAttachment{ other.m_IsResolveAttachment },
+	m_NumLevels{ other.m_NumLevels },
+	m_NumLayers{ other.m_NumLayers },
+	m_IsDepthFormat{ other.m_IsDepthFormat },
+	m_IsStencilFormat{ other.m_IsStencilFormat },
+	m_CurrentVkImageLayout{ other.m_CurrentVkImageLayout },
+	m_ImageView{ other.m_ImageView },
+	m_ImageViewStorage{ other.m_ImageViewStorage },
+	m_ImageViewForFramebuffer{ other.m_ImageViewStorage },
+	m_pGraphicsAPI{ other.m_pGraphicsAPI }
+{
+	m_VkMemory[0] = other.m_VkMemory[0];
+	m_VkMemory[1] = other.m_VkMemory[1];
+	m_VkMemory[2] = other.m_VkMemory[2];
+
+	memcpy(m_DebugName, other.m_DebugName, 256);
+
+	other.m_VkImage = VK_NULL_HANDLE;
+	other.m_VkMemory[0] = VK_NULL_HANDLE;
+	other.m_VkMemory[1] = VK_NULL_HANDLE;
+	other.m_VkMemory[2] = VK_NULL_HANDLE;
+	//other.m_VmaAllocation = VK_NULL_HANDLE;
+	other.m_MappedPtr = nullptr;
+	other.m_IsOwningVkImage = false;
+	other.m_ImageView = VK_NULL_HANDLE;
+	other.m_ImageViewStorage = VK_NULL_HANDLE;
+	memset(other.m_ImageViewForFramebuffer, 0, sizeof(VkImageView) * sk_MaxArrayLayers * sk_MaxMipLevels);
+}
+
+GfxImage& GfxImage::operator=(GfxImage&& other) noexcept
+{
+	m_VkImage = other.m_VkImage;
+	m_VkUsageFlags = other.m_VkUsageFlags;
+	m_VkMemory[0] = other.m_VkMemory[0];
+	m_VkMemory[1] = other.m_VkMemory[1];
+	m_VkMemory[2] = other.m_VkMemory[2];
+	//m_VmaAllocation = other.m_VmaAllocation;
+	m_VkFormatProperties = other.m_VkFormatProperties;
+	m_VkExtent = other.m_VkExtent;
+	m_VkType = other.m_VkType;
+	m_VkImageFormat = other.m_VkImageFormat;
+	m_VkSamples = other.m_VkSamples;
+	m_MappedPtr = other.m_MappedPtr;
+	m_IsSwapchainImage = other.m_IsSwapchainImage;
+	m_IsOwningVkImage = other.m_IsOwningVkImage;
+	m_IsResolveAttachment = other.m_IsResolveAttachment;
+	m_NumLevels = other.m_NumLevels;
+	m_NumLayers = other.m_NumLayers;
+	m_IsDepthFormat = other.m_IsDepthFormat;
+	m_IsStencilFormat = other.m_IsStencilFormat;
+	memcpy(m_DebugName, other.m_DebugName, 256);
+	m_CurrentVkImageLayout = other.m_CurrentVkImageLayout;
+	m_ImageView = other.m_ImageView;
+	m_ImageViewStorage = other.m_ImageViewStorage;
+	memcpy(m_ImageViewForFramebuffer, other.m_ImageViewForFramebuffer, sizeof(VkImageView) * sk_MaxArrayLayers * sk_MaxMipLevels);
+
+	other.m_VkImage = VK_NULL_HANDLE;
+	other.m_VkMemory[0] = VK_NULL_HANDLE;
+	other.m_VkMemory[1] = VK_NULL_HANDLE;
+	other.m_VkMemory[2] = VK_NULL_HANDLE;
+	//other.m_VmaAllocation = VK_NULL_HANDLE;
+	other.m_MappedPtr = nullptr;
+	other.m_IsOwningVkImage = false;
+	other.m_ImageView = VK_NULL_HANDLE;
+	other.m_ImageViewStorage = VK_NULL_HANDLE;
+	memset(other.m_ImageViewForFramebuffer, 0, sizeof(VkImageView) * sk_MaxArrayLayers * sk_MaxMipLevels);
+
+	return *this;
 }
 
 bool GfxImage::IsSampledImage() const
@@ -195,8 +279,7 @@ void GfxImage::ImageMemoryBarrier(VkCommandBuffer cmdBuffer,
 	vkCmdPipelineBarrier2(cmdBuffer, &depInfo);
 }
 
-VkImageView GfxImage::CreateImageView(GfxDevice* pGfxDevice,
-                                      VkImageViewType type,
+VkImageView GfxImage::CreateImageView(VkImageViewType type,
                                       VkFormat format,
                                       VkImageAspectFlags aspectMask, 
                                       uint32_t baseLevel,
@@ -207,6 +290,8 @@ VkImageView GfxImage::CreateImageView(GfxDevice* pGfxDevice,
                                       const VkSamplerYcbcrConversionInfo* ycbcr,
                                       const char* debugName) const
 {
+	const auto& gfxDevice{ m_pGraphicsAPI->GetGfxDevice() };
+
 	const VkImageViewCreateInfo createInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -219,10 +304,10 @@ VkImageView GfxImage::CreateImageView(GfxDevice* pGfxDevice,
 	};
 
 	VkImageView vkView{ VK_NULL_HANDLE };
-	const auto& device{ pGfxDevice->GetDevice() };
+	const auto& device{ gfxDevice->GetDevice() };
 
 	HandleVkResult(vkCreateImageView(device, &createInfo, nullptr, &vkView));
-	HandleVkResult(pGfxDevice->SetVkObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(vkView), debugName));
+	HandleVkResult(gfxDevice->SetVkObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(vkView), debugName));
 
 	return vkView;
 }
@@ -237,7 +322,7 @@ void GfxImage::GenerateMipmap(VkCommandBuffer cmdBuffer) const
 
 		if (!hardwareDownscalingSupported)
 		{
-			Logger::Get().LogError(std::format(L"Doesn't support hardware downscaling of this image format: %p", m_VkImageFormat));
+			Logger::Get().LogError(std::format(L"Doesn't support hardware downscaling of this image format: {}", StrUtils::cstr2stdwstr(string_VkFormat(m_VkImageFormat))));
 			return;
 		}
 	}
@@ -395,7 +480,7 @@ VkImageAspectFlags GfxImage::GetImageAspectFlags() const
 	return flags;
 }
 
-VkImageView GfxImage::GetOrCreateVkImageViewForFramebuffer(GraphicsAPI* pGraphicsAPI, uint8_t level, uint16_t layer)
+VkImageView GfxImage::GetOrCreateVkImageViewForFramebuffer(uint8_t level, uint16_t layer)
 {
 	assert(level < sk_MaxMipLevels);
 	assert(layer < sk_MaxArrayLayers);
@@ -410,8 +495,7 @@ VkImageView GfxImage::GetOrCreateVkImageViewForFramebuffer(GraphicsAPI* pGraphic
 	char debugNameImageView[256]{ 0 };
 	snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: '%s' imageViewForFramebuffer_[%u][%u]", m_DebugName, level, layer);
 
-	m_ImageViewForFramebuffer[level][layer] = CreateImageView(m_pGraphicsAPI->GetGfxDevice(),
-															  VK_IMAGE_VIEW_TYPE_2D,
+	m_ImageViewForFramebuffer[level][layer] = CreateImageView(VK_IMAGE_VIEW_TYPE_2D,
 															  m_VkImageFormat,
 															  GetImageAspectFlags(),
 															  level,

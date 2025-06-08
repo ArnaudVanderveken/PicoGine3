@@ -18,8 +18,8 @@ struct GfxImage final
 
 	GfxImage(const GfxImage&) noexcept = delete;
 	GfxImage& operator=(const GfxImage&) noexcept = delete;
-	GfxImage(GfxImage&&) noexcept = delete;
-	GfxImage& operator=(GfxImage&&) noexcept = delete;
+	GfxImage(GfxImage&& other) noexcept;
+	GfxImage& operator=(GfxImage&& other) noexcept;
 
 	[[nodiscard]] bool IsSampledImage() const;
 	[[nodiscard]] bool IsStorageImage() const;
@@ -37,8 +37,7 @@ struct GfxImage final
 								   VkImageLayout newImageLayout,
 								   VkImageSubresourceRange subresourceRange);
 
-	[[nodiscard]] VkImageView CreateImageView(GfxDevice* pGfxDevice,
-											  VkImageViewType type,
+	[[nodiscard]] VkImageView CreateImageView(VkImageViewType type,
 											  VkFormat format,
 											  VkImageAspectFlags aspectMask,
 											  uint32_t baseLevel,
@@ -58,7 +57,7 @@ struct GfxImage final
 	[[nodiscard]] VkImageAspectFlags GetImageAspectFlags() const;
 
 	// Framebuffers can render only into one level/layer
-	[[nodiscard]] VkImageView GetOrCreateVkImageViewForFramebuffer(GraphicsAPI* pGraphicsAPI, uint8_t level, uint16_t layer);
+	[[nodiscard]] VkImageView GetOrCreateVkImageViewForFramebuffer(uint8_t level, uint16_t layer);
 
 	[[nodiscard]] static bool IsDepthFormat(VkFormat format);
 	[[nodiscard]] static bool IsStencilFormat(VkFormat format);
@@ -67,7 +66,7 @@ struct GfxImage final
 	VkImage m_VkImage{ VK_NULL_HANDLE };
 	VkImageUsageFlags m_VkUsageFlags{};
 	VkDeviceMemory m_VkMemory[3]{ VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
-	//VmaAllocation vmaAllocation_{ VK_NULL_HANDLE };
+	//VmaAllocation m_VmaAllocation{ VK_NULL_HANDLE };
 	VkFormatProperties m_VkFormatProperties{};
 	VkExtent3D m_VkExtent{ 0, 0, 0 };
 	VkImageType m_VkType{ VK_IMAGE_TYPE_MAX_ENUM };

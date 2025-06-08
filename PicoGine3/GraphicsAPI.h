@@ -108,10 +108,8 @@ private:
 	std::vector<std::unique_ptr<GfxBuffer>> m_PerFrameUBO;
 	VkDescriptorPool m_VkDescriptorPool;
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
-	uint32_t m_MipLevels;
-	VkImage m_VkTestModelTextureImage;
-	VkDeviceMemory m_VkTestModelTextureImageMemory;
-	VkImageView m_VkTestModelTextureImageView;
+
+	std::unique_ptr<GfxImage> m_pTestModelTextureImage;
 	VkSampler m_VkTestModelTextureSampler;
 
 	void ProcessDeferredTasks();
@@ -125,8 +123,6 @@ private:
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImage();
-	void CreateTextureImageView();
-	void CreateTextureSampler();
 };
 
 #endif

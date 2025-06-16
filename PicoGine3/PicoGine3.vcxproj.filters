@@ -92,9 +92,6 @@
     <ClCompile Include="imgui_impl_dx12.cpp">
       <Filter>ImGUI</Filter>
     </ClCompile>
-    <ClCompile Include="GfxBuffer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="GfxImmediateCommands.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -104,7 +101,10 @@
     <ClCompile Include="GfxCommandBuffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GfxImage.cpp">
+    <ClCompile Include="GfxRenderPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GfxStructs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -214,9 +214,6 @@
     <ClInclude Include="imgui_impl_dx12.h">
       <Filter>ImGUI</Filter>
     </ClInclude>
-    <ClInclude Include="GfxBuffer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="GfxImmediateCommands.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -226,10 +223,13 @@
     <ClInclude Include="GfxCommandBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GfxImage.h">
+    <ClInclude Include="SimplePool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SimplePool.h">
+    <ClInclude Include="GfxRenderPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxStructs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

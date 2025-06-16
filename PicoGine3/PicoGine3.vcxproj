@@ -240,11 +240,11 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CoreSystems.cpp" />
-    <ClCompile Include="GfxBuffer.cpp" />
     <ClCompile Include="GfxCommandBuffer.cpp" />
     <ClCompile Include="GfxDevice.cpp" />
-    <ClCompile Include="GfxImage.cpp" />
     <ClCompile Include="GfxImmediateCommands.cpp" />
+    <ClCompile Include="GfxRenderPipeline.cpp" />
+    <ClCompile Include="GfxStructs.cpp" />
     <ClCompile Include="GfxSwapchain.cpp" />
     <ClCompile Include="GraphicsAPI.cpp" />
     <ClCompile Include="GUI.cpp" />
@@ -397,11 +397,11 @@ IF %ERRORLEVEL% LEQ 7 (SET ERRORLEVEL=0)</Command>
     <ClInclude Include="CleanedWindows.h" />
     <ClInclude Include="Components.hpp" />
     <ClInclude Include="CoreSystems.h" />
-    <ClInclude Include="GfxBuffer.h" />
     <ClInclude Include="GfxCommandBuffer.h" />
     <ClInclude Include="GfxDevice.h" />
-    <ClInclude Include="GfxImage.h" />
     <ClInclude Include="GfxImmediateCommands.h" />
+    <ClInclude Include="GfxRenderPipeline.h" />
+    <ClInclude Include="GfxStructs.h" />
     <ClInclude Include="GfxSwapchain.h" />
     <ClInclude Include="GraphicsAPI.h" />
     <ClInclude Include="GUI.h" />

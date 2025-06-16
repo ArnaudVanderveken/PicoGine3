@@ -1,8 +1,7 @@
 #ifndef RESOURCEDATA_H
 #define RESOURCEDATA_H
 
-#include "GfxBuffer.h"
-#include "GfxImage.h"
+#include "GfxStructs.h"
 #include "GraphicsAPI.h"
 #include "Vertex.h"
 

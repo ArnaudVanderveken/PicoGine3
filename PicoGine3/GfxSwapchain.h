@@ -1,6 +1,7 @@
 #ifndef GFXSWAPCHAIN_H
 #define GFXSWAPCHAIN_H
-#include "GfxImage.h"
+
+#include "GfxStructs.h"
 
 #if defined(_DX)
 
@@ -23,7 +24,6 @@ private:
 #elif defined(_VK)
 
 class GraphicsAPI;
-class GfxDevice;
 
 class GfxSwapchain final
 {

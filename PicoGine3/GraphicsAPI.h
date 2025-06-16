@@ -1,7 +1,7 @@
 #ifndef GRAPHICSAPI_H
 #define GRAPHICSAPI_H
 
-#include "GfxBuffer.h"
+#include "GfxStructs.h"
 #include "GfxCommandBuffer.h"
 #include "GfxDevice.h"
 #include "GfxImmediateCommands.h"

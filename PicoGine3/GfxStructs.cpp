@@ -1,9 +1,139 @@
 #include "pch.h"
-#include "GfxImage.h"
-
-#include <format>
+#include "GfxStructs.h"
 
 #include "GraphicsAPI.h"
+
+#pragma region GfxBuffer
+
+GfxBuffer::GfxBuffer(GraphicsAPI* pGraphicsAPI, size_t elementStride, size_t elementCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryFlags, size_t minAlignmentOffset) :
+	m_pGraphicsAPI{ pGraphicsAPI },
+	m_pMappedMemory{ nullptr },
+	m_VkDeviceAddress{ 0 },
+	m_UsageFlags{ usageFlags },
+	m_MemoryFlags{ memoryFlags },
+	m_ElementStride{ elementStride },
+	m_ElementCount{ elementCount }
+{
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice() };
+
+	m_AlignmentSize = GetAlignment(elementStride, minAlignmentOffset);
+	m_BufferSize = elementCount * m_AlignmentSize;
+	device->CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
+}
+
+GfxBuffer::~GfxBuffer()
+{
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
+	Unmap();
+
+	m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, buffer = m_Buffer, memory = m_BufferMemory]()
+		{
+			vkDestroyBuffer(device, buffer, nullptr);
+			vkFreeMemory(device, memory, nullptr);
+		}));
+
+}
+
+void GfxBuffer::Map(size_t size, size_t offset)
+{
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
+	const size_t mappedSize{ std::min(size, m_BufferSize) };
+	HandleVkResult(vkMapMemory(device, m_BufferMemory, offset, mappedSize, 0, &m_pMappedMemory));
+}
+
+void GfxBuffer::Unmap()
+{
+	if (m_pMappedMemory)
+	{
+		const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
+		vkUnmapMemory(device, m_BufferMemory);
+		m_pMappedMemory = nullptr;
+	}
+}
+
+size_t GfxBuffer::GetBufferSize() const
+{
+	return m_BufferSize;
+}
+
+void GfxBuffer::WriteToBuffer(const void* data, size_t size, size_t offset) const
+{
+	assert(m_pMappedMemory && L"Cannot write to unmapped buffer!");
+
+	if (size == ~0ULL)
+		memcpy(m_pMappedMemory, data, m_BufferSize);
+
+	else
+	{
+		char* memOffset = static_cast<char*>(m_pMappedMemory);
+		memOffset += offset;
+		memcpy(memOffset, data, size);
+	}
+}
+
+void GfxBuffer::Flush(size_t size, size_t offset) const
+{
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
+	VkMappedMemoryRange mappedRange{};
+	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	mappedRange.memory = m_BufferMemory;
+	mappedRange.offset = offset;
+	mappedRange.size = size;
+	HandleVkResult(vkFlushMappedMemoryRanges(device, 1, &mappedRange));
+}
+
+void GfxBuffer::Invalidate(size_t size, size_t offset) const
+{
+	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+
+	VkMappedMemoryRange mappedRange{};
+	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	mappedRange.memory = m_BufferMemory;
+	mappedRange.offset = offset;
+	mappedRange.size = size;
+	HandleVkResult(vkInvalidateMappedMemoryRanges(device, 1, &mappedRange));
+}
+
+void GfxBuffer::WriteToIndex(const void* data, int index) const
+{
+	WriteToBuffer(data, m_ElementStride, index * m_AlignmentSize);
+}
+
+void GfxBuffer::FlushIndex(int index) const
+{
+	Flush(m_AlignmentSize, index * m_AlignmentSize);
+}
+
+void GfxBuffer::InvalidateIndex(int index) const
+{
+	Invalidate(m_AlignmentSize, index * m_AlignmentSize);
+}
+
+VkBuffer GfxBuffer::GetBuffer() const
+{
+	return m_Buffer;
+}
+
+VkDeviceMemory GfxBuffer::GetBufferMemory() const
+{
+	return m_BufferMemory;
+}
+
+size_t GfxBuffer::GetAlignment(size_t elementStride, size_t minAlignmentOffset)
+{
+	if (minAlignmentOffset > 0)
+		return (elementStride + minAlignmentOffset - 1) & ~(minAlignmentOffset - 1);
+
+	return elementStride;
+}
+
+#pragma endregion
+
+#pragma region GfxImage
 
 GfxImage::GfxImage(GraphicsAPI* pGraphicsAPI) :
 	m_pGraphicsAPI{ pGraphicsAPI }
@@ -17,17 +147,17 @@ GfxImage::~GfxImage()
 	if (m_ImageView != VK_NULL_HANDLE)
 	{
 		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = m_ImageView]()
-		{
-			vkDestroyImageView(device, imageView, nullptr);
-		}));
+			{
+				vkDestroyImageView(device, imageView, nullptr);
+			}));
 	}
 
 	if (m_ImageViewStorage != VK_NULL_HANDLE)
 	{
 		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = m_ImageViewStorage]()
-		{
-			vkDestroyImageView(device, imageView, nullptr);
-		}));
+			{
+				vkDestroyImageView(device, imageView, nullptr);
+			}));
 	}
 
 	for (size_t i{}; i != sk_MaxMipLevels; ++i)
@@ -38,9 +168,9 @@ GfxImage::~GfxImage()
 			if (view != VK_NULL_HANDLE)
 			{
 				m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = view]()
-				{
-					vkDestroyImageView(device, imageView, nullptr);
-				}));
+					{
+						vkDestroyImageView(device, imageView, nullptr);
+					}));
 			}
 		}
 	}
@@ -61,19 +191,19 @@ GfxImage::~GfxImage()
 	{*/
 		if (m_MappedPtr)
 			vkUnmapMemory(device, m_VkMemory[0]);
-		
+
 		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, image = m_VkImage, memory0 = m_VkMemory[0], memory1 = m_VkMemory[1], memory2 = m_VkMemory[2]]()
 		{
 			vkDestroyImage(device, image, nullptr);
 			if (memory0 != VK_NULL_HANDLE)
 				vkFreeMemory(device, memory0, nullptr);
-			
+
 			if (memory1 != VK_NULL_HANDLE)
 				vkFreeMemory(device, memory1, nullptr);
-			
+
 			if (memory2 != VK_NULL_HANDLE)
 				vkFreeMemory(device, memory2, nullptr);
-			
+
 		}));
 	/*}*/
 }
@@ -247,12 +377,12 @@ StageAccess GfxImage::GetPipelineStageAccess(VkImageLayout layout)
 }
 
 void GfxImage::ImageMemoryBarrier(VkCommandBuffer cmdBuffer,
-								  VkImage image,
-								  StageAccess src,
-								  StageAccess dst,
-								  VkImageLayout oldImageLayout,
-								  VkImageLayout newImageLayout,
-								  VkImageSubresourceRange subresourceRange)
+	VkImage image,
+	StageAccess src,
+	StageAccess dst,
+	VkImageLayout oldImageLayout,
+	VkImageLayout newImageLayout,
+	VkImageSubresourceRange subresourceRange)
 {
 	const VkImageMemoryBarrier2 barrier
 	{
@@ -280,15 +410,15 @@ void GfxImage::ImageMemoryBarrier(VkCommandBuffer cmdBuffer,
 }
 
 VkImageView GfxImage::CreateImageView(VkImageViewType type,
-                                      VkFormat format,
-                                      VkImageAspectFlags aspectMask, 
-                                      uint32_t baseLevel,
-                                      uint32_t numLevels,
-                                      uint32_t baseLayer,
-                                      uint32_t numLayers,
-                                      const VkComponentMapping mapping,
-                                      const VkSamplerYcbcrConversionInfo* ycbcr,
-                                      const char* debugName) const
+	VkFormat format,
+	VkImageAspectFlags aspectMask,
+	uint32_t baseLevel,
+	uint32_t numLevels,
+	uint32_t baseLayer,
+	uint32_t numLayers,
+	const VkComponentMapping mapping,
+	const VkSamplerYcbcrConversionInfo* ycbcr,
+	const char* debugName) const
 {
 	const auto& gfxDevice{ m_pGraphicsAPI->GetGfxDevice() };
 
@@ -441,7 +571,7 @@ void GfxImage::TransitionLayout(VkCommandBuffer cmdBuffer, VkImageLayout newImag
 		: m_CurrentVkImageLayout
 	};
 
-	if (newImageLayout == VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL) 
+	if (newImageLayout == VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL)
 		newImageLayout = IsDepthAttachment() ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	StageAccess src{ GetPipelineStageAccess(oldImageLayout) };
@@ -490,21 +620,21 @@ VkImageView GfxImage::GetOrCreateVkImageViewForFramebuffer(uint8_t level, uint16
 
 	if (m_ImageViewForFramebuffer[level][layer] != VK_NULL_HANDLE)
 		return m_ImageViewForFramebuffer[level][layer];
-	
+
 
 	char debugNameImageView[256]{ 0 };
 	snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: '%s' imageViewForFramebuffer_[%u][%u]", m_DebugName, level, layer);
 
 	m_ImageViewForFramebuffer[level][layer] = CreateImageView(VK_IMAGE_VIEW_TYPE_2D,
-															  m_VkImageFormat,
-															  GetImageAspectFlags(),
-															  level,
-															  1u,
-															  layer,
-															  1u,
-															  {},
-															  nullptr,
-															  debugNameImageView);
+		m_VkImageFormat,
+		GetImageAspectFlags(),
+		level,
+		1u,
+		layer,
+		1u,
+		{},
+		nullptr,
+		debugNameImageView);
 
 	return m_ImageViewForFramebuffer[level][layer];
 }
@@ -520,3 +650,6 @@ bool GfxImage::IsStencilFormat(VkFormat format)
 	return (format == VK_FORMAT_S8_UINT) || (format == VK_FORMAT_D16_UNORM_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT) ||
 		(format == VK_FORMAT_D32_SFLOAT_S8_UINT);
 }
+
+
+#pragma endregion

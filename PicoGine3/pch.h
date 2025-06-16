@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <deque>
 #include <future>
+#include <format>
 #include <iostream>
 #include <limits>
 #include <memory>

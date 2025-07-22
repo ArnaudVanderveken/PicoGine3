@@ -223,7 +223,7 @@
     <ClInclude Include="GfxCommandBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SimplePool.h">
+    <ClInclude Include="Pool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GfxRenderPipeline.h">

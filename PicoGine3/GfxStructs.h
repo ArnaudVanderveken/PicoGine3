@@ -45,6 +45,101 @@ enum CompareOp : uint8_t
 	CompareOp_AlwaysPass
 };
 
+enum StorageType
+{
+	StorageType_Device,
+	StorageType_HostVisible,
+	StorageType_Memoryless
+};
+
+enum BufferUsageBits : uint8_t
+{
+	BufferUsageBits_Index = 1 << 0,
+	BufferUsageBits_Vertex = 1 << 1,
+	BufferUsageBits_Uniform = 1 << 2,
+	BufferUsageBits_Storage = 1 << 3,
+	BufferUsageBits_Indirect = 1 << 4,
+	// ray tracing
+	BufferUsageBits_ShaderBindingTable = 1 << 5,
+	BufferUsageBits_AccelStructBuildInputReadOnly = 1 << 6,
+	BufferUsageBits_AccelStructStorage = 1 << 7
+};
+
+enum CullMode : uint8_t
+{
+	CullMode_None,
+	CullMode_Front,
+	CullMode_Back
+};
+
+enum WindingMode : uint8_t
+{
+	WindingMode_CCW,
+	WindingMode_CW
+};
+
+enum TextureType : uint8_t
+{
+	TextureType_2D,
+	TextureType_3D,
+	TextureType_Cube,
+};
+
+enum TextureUsageBits : uint8_t
+{
+	TextureUsageBits_Sampled = 1 << 0,
+	TextureUsageBits_Storage = 1 << 1,
+	TextureUsageBits_Attachment = 1 << 2,
+};
+
+enum Format : uint8_t
+{
+	Invalid = 0,
+
+	R8_UNorm,
+	R16_UNorm,
+	R16_UInt,
+	R32_UInt,
+	R16_SFloat,
+	R32_SFloat,
+
+	R8G8_UNorm,
+	R16G16_UNorm,
+	R16G16_UInt,
+	R32G32_UInt,
+	R16G16_SFloat,
+	R32G32_SFloat,
+
+	R8G8B8A8_UNorm,
+	R8G8B8A8_SRGB,
+	R32G32B32A32_UInt,
+	R16G16B16A16_SFloat,
+	R32G32B32A32_SFloat,
+
+	B8G8R8A8_UNorm,
+	B8G8R8A8_SRGB,
+
+	ETC2_R8G8B8_UNorm,
+	ETC2_R8G8B8_SRGB,
+	BC7_UNorm,
+
+	D16_UNorm,
+	D24_UNorm_S8_UInt,
+	D32_SFloat,
+	D32_SFloat_S8_UInt
+};
+
+enum Swizzle : uint8_t
+{
+	Swizzle_Default = 0,
+	Swizzle_0,
+	Swizzle_1,
+	Swizzle_R,
+	Swizzle_G,
+	Swizzle_B,
+	Swizzle_A,
+};
+
 union ClearColorValue
 {
 	float m_Float32[4];
@@ -176,53 +271,254 @@ struct TextureLayers
 	uint32_t m_NumLayers{ 1 };
 };
 
+struct TextureFormatProperties
+{
+	Format m_Format;
+	uint8_t m_BytesPerBlock = 1;
+	uint8_t m_BlockWidth = 1;
+	uint8_t m_BlockHeight = 1;
+	uint8_t m_MinBlocksX = 1;
+	uint8_t m_MinBlocksY = 1;
+	bool m_Depth = false;
+	bool m_Stencil = false;
+	bool m_Compressed = false;
+};
+
+struct ComponentMapping
+{
+	Swizzle m_R = Swizzle_Default;
+	Swizzle m_G = Swizzle_Default;
+	Swizzle m_B = Swizzle_Default;
+	Swizzle m_A = Swizzle_Default;
+
+	[[nodiscard]] bool Identity() const
+	{
+		return m_R == Swizzle_Default && m_G == Swizzle_Default && m_B == Swizzle_Default && m_A == Swizzle_Default;
+	}
+};
+
+#define PROPS(fmt, bpb, ...) TextureFormatProperties { .m_Format = ##fmt, .m_BytesPerBlock = bpb, ##__VA_ARGS__ }
+
+static constexpr TextureFormatProperties sk_textureFormatProperties[]{
+	PROPS(Invalid, 1),
+	PROPS(R8_UNorm, 1),
+	PROPS(R16_UNorm, 2),
+	PROPS(R16_UInt, 2),
+	PROPS(R32_UInt, 4),
+	PROPS(R16_SFloat, 2),
+	PROPS(R32_SFloat, 4),
+	PROPS(R8G8_UNorm, 2),
+	PROPS(R16G16_UNorm, 4),
+	PROPS(R16G16_UInt, 4),
+	PROPS(R32G32_UInt, 8),
+	PROPS(R16G16_SFloat, 4),
+	PROPS(R32G32_SFloat, 8),
+	PROPS(R8G8B8A8_UNorm, 4),
+	PROPS(R8G8B8A8_SRGB, 4),
+	PROPS(R32G32B32A32_UInt, 16),
+	PROPS(R16G16B16A16_SFloat, 8),
+	PROPS(R32G32B32A32_SFloat, 16),
+	PROPS(B8G8R8A8_UNorm, 4),
+	PROPS(B8G8R8A8_SRGB, 4),
+	PROPS(ETC2_R8G8B8_UNorm, 8, .m_BlockWidth = 4, .m_BlockHeight = 4, .m_Compressed = true),
+	PROPS(ETC2_R8G8B8_SRGB, 8, .m_BlockWidth = 4, .m_BlockHeight = 4, .m_Compressed = true),
+	PROPS(BC7_UNorm, 16, .m_BlockWidth = 4, .m_BlockHeight = 4, .m_Compressed = true),
+	PROPS(D16_UNorm, 2, .m_Depth = true),
+	PROPS(D32_SFloat, 4, .m_Depth = true),
+	PROPS(D32_SFloat_S8_UInt, 5, .m_Depth = true, .m_Stencil = true),
+	PROPS(D24_UNorm_S8_UInt, 4, .m_Depth = true, .m_Stencil = true)
+};
+
+#undef PROPS
+
+inline VkAttachmentLoadOp LoadOpToVkAttachmentLoadOp(LoadOp a)
+{
+	switch (a)
+	{
+		case LoadOp_Invalid:
+			assert(false);
+			return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		case LoadOp_DontCare:
+			return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		case LoadOp_Load:
+			return VK_ATTACHMENT_LOAD_OP_LOAD;
+		case LoadOp_Clear:
+			return VK_ATTACHMENT_LOAD_OP_CLEAR;
+		case LoadOp_None:
+			return VK_ATTACHMENT_LOAD_OP_NONE_EXT;
+	}
+	assert(false);
+	return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+}
+
+inline VkAttachmentStoreOp StoreOpToVkAttachmentStoreOp(StoreOp a)
+{
+	switch (a)
+	{
+		case StoreOp_DontCare:
+			return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		case StoreOp_Store:
+			return VK_ATTACHMENT_STORE_OP_STORE;
+		case StoreOp_MsaaResolve:
+			// for MSAA resolve, we have to store data into a special "resolve" attachment
+			return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		case StoreOp_None:
+			return VK_ATTACHMENT_STORE_OP_NONE;
+	}
+	assert(false);
+	return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+}
+
+inline VkMemoryPropertyFlags StorageTypeToVkMemoryPropertyFlags(StorageType storage)
+{
+	VkMemoryPropertyFlags memFlags{ 0 };
+
+	switch (storage)
+	{
+	case StorageType_Device:
+		memFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		break;
+	case StorageType_HostVisible:
+		memFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+		break;
+	case StorageType_Memoryless:
+		memFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+		break;
+	}
+	return memFlags;
+}
+
+inline VkFormat FormatToVkFormat(Format format)
+{
+	switch (format)
+	{
+	case Invalid:
+		return VK_FORMAT_UNDEFINED;
+
+	case R8_UNorm:
+		return VK_FORMAT_R8_UNORM;
+
+	case R16_UNorm:
+		return VK_FORMAT_R16_UNORM;
+
+	case R16_UInt:
+		return VK_FORMAT_R16_UINT;
+
+	case R32_UInt:
+		return VK_FORMAT_R32_UINT;
+
+	case R16_SFloat:
+		return VK_FORMAT_R16_SFLOAT;
+
+	case R32_SFloat:
+		return VK_FORMAT_R32_SFLOAT;
+
+	case R8G8_UNorm:
+		return VK_FORMAT_R8G8_UNORM;
+
+	case R16G16_UNorm:
+		return VK_FORMAT_R16G16_UNORM;
+
+	case R16G16_UInt:
+		return VK_FORMAT_R16G16_UINT;
+
+	case R32G32_UInt:
+		return VK_FORMAT_R32G32_UINT;
+
+	case R16G16_SFloat:
+		return VK_FORMAT_R16G16_SFLOAT;
+
+	case R32G32_SFloat:
+		return VK_FORMAT_R32G32_SFLOAT;
+
+	case R8G8B8A8_UNorm:
+		return VK_FORMAT_R8G8B8A8_UNORM;
+
+	case R8G8B8A8_SRGB:
+		return VK_FORMAT_R8G8B8A8_SRGB;
+
+	case R32G32B32A32_UInt:
+		return VK_FORMAT_R32G32B32A32_UINT;
+
+	case R16G16B16A16_SFloat:
+		return VK_FORMAT_R16G16B16A16_SFLOAT;
+
+	case R32G32B32A32_SFloat:
+		return VK_FORMAT_R32G32B32A32_SFLOAT;
+
+	case B8G8R8A8_UNorm:
+		return VK_FORMAT_B8G8R8A8_UNORM;
+
+	case B8G8R8A8_SRGB:
+		return VK_FORMAT_B8G8R8A8_SRGB;
+
+	case ETC2_R8G8B8_UNorm:
+		return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+
+	case ETC2_R8G8B8_SRGB:
+		return VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK;
+
+	case BC7_UNorm:
+		return VK_FORMAT_BC7_UNORM_BLOCK;
+
+	case D16_UNorm:
+		return VK_FORMAT_D16_UNORM;
+
+	case D24_UNorm_S8_UInt:
+		return VK_FORMAT_D24_UNORM_S8_UINT;
+
+	case D32_SFloat:
+		return VK_FORMAT_D32_SFLOAT;
+
+	case D32_SFloat_S8_UInt:
+		return VK_FORMAT_D32_SFLOAT_S8_UINT;
+	}
+
+	Logger::Get().LogError(std::format(L"Unsupported format : {}", static_cast<int>(format)));
+	return VK_FORMAT_UNDEFINED;
+}
+
 #pragma endregion
 
 #pragma region GfxBuffer
 
+struct BufferDesc final
+{
+	uint8_t m_Usage{ 0 };
+	StorageType m_Storage{ StorageType_HostVisible };
+	size_t m_Size{ 0 };
+	const void* m_Data{ nullptr };
+	const char* m_DebugName{ nullptr };
+};
+
 struct GfxBuffer final
 {
-public:
-	explicit GfxBuffer(GraphicsAPI* pGraphicsAPI, size_t elementStride, size_t elementCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryFlags, size_t minAlignmentOffset = 0);
-	~GfxBuffer();
+	GfxBuffer() = default;
+	~GfxBuffer() = default;
 
 	GfxBuffer(const GfxBuffer& other) noexcept = delete;
 	GfxBuffer& operator=(const GfxBuffer& other) noexcept = delete;
-	GfxBuffer(GfxBuffer&& other) noexcept = delete;
-	GfxBuffer& operator=(GfxBuffer&& other) noexcept = delete;
+	GfxBuffer(GfxBuffer&& other) noexcept = default;
+	GfxBuffer& operator=(GfxBuffer&& other) noexcept = default;
 
-	void Map(size_t size = ~0ULL, size_t offset = 0);
-	void Unmap();
+	[[nodiscard]] inline uint8_t* GetMappedPtr() const;
+	[[nodiscard]] inline bool IsMapped() const;
 
-	[[nodiscard]] size_t GetBufferSize() const;
+	void WriteBufferData(size_t offset, size_t size, const void* data) const;
+	void GetBufferData(size_t offset, size_t size, void* data) const;
+	void FlushMappedMemory(VkDeviceSize offset, VkDeviceSize size) const;
+	void InvalidateMappedMemory(VkDeviceSize offset, VkDeviceSize size) const;
 
-	void WriteToBuffer(const void* data, size_t size = ~0ULL, size_t offset = 0) const;
-	void Flush(size_t size = ~0ULL, size_t offset = 0) const;
-	void Invalidate(size_t size = ~0ULL, size_t offset = 0) const;
-
-	void WriteToIndex(const void* data, int index) const;
-	void FlushIndex(int index) const;
-	void InvalidateIndex(int index) const;
-
-	[[nodiscard]] VkBuffer GetBuffer() const;
-	[[nodiscard]] VkDeviceMemory GetBufferMemory() const;
-
-private:
+	VkBuffer m_VkBuffer{ VK_NULL_HANDLE };
+	VkDeviceMemory m_VkMemory{ VK_NULL_HANDLE };
+	//VmaAllocation m_VmaAllocation{ VK_NULL_HANDLE };
+	VkDeviceAddress m_VkDeviceAddress{};
+	VkDeviceSize m_BufferSize{};
+	VkBufferUsageFlags m_VkUsageFlags{};
+	VkMemoryPropertyFlags m_VkMemFlags{};
+	void* m_pMappedPtr{ nullptr };
+	bool m_IsCoherentMemory{ false };
 	GraphicsAPI* m_pGraphicsAPI;
-
-	VkBuffer m_Buffer;
-	VkDeviceMemory m_BufferMemory;
-	void* m_pMappedMemory;
-	VkDeviceAddress m_VkDeviceAddress;
-	VkBufferUsageFlags m_UsageFlags;
-	VkMemoryPropertyFlags m_MemoryFlags;
-
-	size_t m_ElementStride;
-	size_t m_ElementCount;
-	size_t m_AlignmentSize;
-	size_t m_BufferSize;
-
-	static size_t GetAlignment(size_t elementStride, size_t minAlignmentOffset);
 };
 
 #pragma endregion
@@ -235,15 +531,34 @@ struct StageAccess
 	VkAccessFlags2 m_Access;
 };
 
+struct TextureDesc
+{
+	TextureType m_Type = TextureType_2D;
+	Format m_Format = Invalid;
+
+	Dimensions m_Dimensions = { 1, 1, 1 };
+	uint32_t m_NumLayers = 1;
+	uint32_t m_NumSamples = 1;
+	uint8_t m_Usage = TextureUsageBits_Sampled;
+	uint32_t m_NumMipLevels = 1;
+	StorageType m_Storage = StorageType_Device;
+	ComponentMapping m_Swizzle = {};
+	const void* m_Data = nullptr;
+	uint32_t m_DataNumMipLevels = 1;
+	bool m_GenerateMipmaps = false;
+	const char* m_DebugName = "";
+};
+
+
 struct GfxImage final
 {
-	explicit GfxImage(GraphicsAPI* pGraphicsAPI);
-	~GfxImage();
+	GfxImage() = default;
+	~GfxImage() = default;
 
 	GfxImage(const GfxImage&) noexcept = delete;
 	GfxImage& operator=(const GfxImage&) noexcept = delete;
-	GfxImage(GfxImage&& other) noexcept;
-	GfxImage& operator=(GfxImage&& other) noexcept;
+	GfxImage(GfxImage&& other) noexcept = default;
+	GfxImage& operator=(GfxImage&& other) noexcept = default;
 
 	[[nodiscard]] bool IsSampledImage() const;
 	[[nodiscard]] bool IsStorageImage() const;
@@ -272,7 +587,6 @@ struct GfxImage final
 											 .g = VK_COMPONENT_SWIZZLE_IDENTITY,
 											 .b = VK_COMPONENT_SWIZZLE_IDENTITY,
 											 .a = VK_COMPONENT_SWIZZLE_IDENTITY },
-		const VkSamplerYcbcrConversionInfo* ycbcr = nullptr,
 		const char* debugName = nullptr) const;
 
 	void GenerateMipmap(VkCommandBuffer cmdBuffer) const;
@@ -289,7 +603,7 @@ struct GfxImage final
 
 	VkImage m_VkImage{ VK_NULL_HANDLE };
 	VkImageUsageFlags m_VkUsageFlags{};
-	VkDeviceMemory m_VkMemory[3]{ VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+	VkDeviceMemory m_VkMemory{ VK_NULL_HANDLE };
 	//VmaAllocation m_VmaAllocation{ VK_NULL_HANDLE };
 	VkFormatProperties m_VkFormatProperties{};
 	VkExtent3D m_VkExtent{ 0, 0, 0 };
@@ -312,8 +626,6 @@ struct GfxImage final
 	VkImageView m_ImageView{ VK_NULL_HANDLE }; // default view with all mip-levels
 	VkImageView m_ImageViewStorage{ VK_NULL_HANDLE }; // default view with identity swizzle (all mip-levels)
 	VkImageView m_ImageViewForFramebuffer[sk_MaxMipLevels][sk_MaxArrayLayers]{};
-
-private:
 	GraphicsAPI* m_pGraphicsAPI;
 };
 

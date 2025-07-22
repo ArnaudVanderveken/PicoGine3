@@ -62,8 +62,9 @@ public:
 
 	[[nodiscard]] VkDevice GetDevice() const;
 	[[nodiscard]] VkPhysicalDevice GetPhysicalDevice() const;
-	[[nodiscard]] VkPhysicalDeviceProperties GetPhysicalDeviceProperties() const;
-	[[nodiscard]] VkPhysicalDeviceProperties2 GetPhysicalDeviceProperties2() const;
+	[[nodiscard]] const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
+	[[nodiscard]] const VkPhysicalDeviceProperties2& GetPhysicalDeviceProperties2() const;
+	[[nodiscard]] const VkPhysicalDeviceLimits& GetPhysicalDeviceLimits() const;
 	[[nodiscard]] VkSurfaceKHR GetSurface() const;
 	[[nodiscard]] DeviceQueueInfo GetDeviceQueueInfo() const;
 

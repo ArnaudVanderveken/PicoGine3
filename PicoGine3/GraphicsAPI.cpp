@@ -220,7 +220,7 @@ void GraphicsAPI::AcquireCommandBuffer()
 	if (m_CurrentCommandBuffer.GetCmdBuffer() != VK_NULL_HANDLE)
 		Logger::Get().LogError(L"Cannot acquire more than one command buffer simultaneously");
 
-	m_CurrentCommandBuffer = GfxCommandBuffer(m_pGfxImmediateCommands.get());
+	m_CurrentCommandBuffer = GfxCommandBuffer(this);
 }
 
 SubmitHandle GraphicsAPI::SubmitCommandBuffer(bool present)
@@ -269,6 +269,498 @@ void GraphicsAPI::AddDeferredTask(std::packaged_task<void()>&& task, SubmitHandl
 		handle = m_pGfxImmediateCommands->GetNextSubmitHandle();
 	
 	m_DeferredTasks.emplace_back(std::move(task), handle);
+}
+
+void GraphicsAPI::CheckAndUpdateDescriptorSets()
+{
+	if (!m_AwaitingDescriptorsCreation)
+		return;
+
+	//TODO
+}
+
+BufferHandle GraphicsAPI::AcquireBuffer(const BufferDesc& desc)
+{
+	VkBufferUsageFlags usageFlags{ (desc.m_Storage == StorageType_Device) ? VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0u };
+
+	if (desc.m_Usage == 0)
+	{
+		Logger::Get().LogError(L"Invalid buffer usage.");
+		return {};
+	}
+
+	if (desc.m_Usage & BufferUsageBits_Index)
+		usageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+	
+	if (desc.m_Usage & BufferUsageBits_Vertex)
+		usageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	
+	if (desc.m_Usage & BufferUsageBits_Uniform)
+		usageFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+
+	if (desc.m_Usage & BufferUsageBits_Storage)
+		usageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+
+	if (desc.m_Usage & BufferUsageBits_Indirect)
+		usageFlags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+
+	if (desc.m_Usage & BufferUsageBits_ShaderBindingTable)
+		usageFlags |= VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+
+	if (desc.m_Usage & BufferUsageBits_AccelStructBuildInputReadOnly)
+		usageFlags |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+
+	if (desc.m_Usage & BufferUsageBits_AccelStructStorage)
+		usageFlags |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+
+	assert(usageFlags && L"Invalid buffer usage.");
+
+	const VkMemoryPropertyFlags memFlags{ StorageTypeToVkMemoryPropertyFlags(desc.m_Storage) };
+
+#define ENSURE_BUFFER_SIZE(flag, maxSize)											   \
+    if (usageFlags & (flag))														   \
+	{																				   \
+		if (!desc.m_Size <= (maxSize))												   \
+		{																			   \
+			Logger::Get().LogError(std::format(L"Buffer size exceeds limit ", #flag)); \
+			return {};                                                                 \
+		}                                                                              \
+	}
+
+	const VkPhysicalDeviceLimits& limits{m_pGfxDevice->GetPhysicalDeviceProperties().limits };
+
+	ENSURE_BUFFER_SIZE(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, limits.maxUniformBufferRange);
+	ENSURE_BUFFER_SIZE(VK_BUFFER_USAGE_FLAG_BITS_MAX_ENUM, limits.maxStorageBufferRange);
+
+#undef ENSURE_BUFFER_SIZE
+
+	GfxBuffer buffer{
+		.bufferSize_ = desc.m_Size,
+		.vkUsageFlags_ = usageFlags,
+		.vkMemFlags_ = memFlags,
+		.m_pGraphicsAPI = this
+	};
+
+	const VkBufferCreateInfo ci{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.size = desc.m_Size,
+		.usage = usageFlags,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = nullptr,
+	};
+
+	const auto& device{ m_pGfxDevice->GetDevice() };
+
+	//if (VULKAN_USE_VMA)
+	//{
+	//	VmaAllocationCreateInfo vmaAllocInfo{};
+
+	//	if (memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+	//	{
+	//		vmaAllocInfo{
+	//			.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+	//			.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+	//			.preferredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+	//		};
+	//	}
+
+	//	if (memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+	//	{
+	//		// Check if coherent buffer is available.
+	//		HandleVkResult(vkCreateBuffer(device, &ci, nullptr, &buffer.m_VkBuffer));
+	//		VkMemoryRequirements requirements{};
+	//		vkGetBufferMemoryRequirements(device, buffer.m_VkBuffer, &requirements);
+	//		vkDestroyBuffer(device, buffer.m_VkBuffer, nullptr);
+	//		buffer.m_VkBuffer = VK_NULL_HANDLE;
+
+	//		if (requirements.memoryTypeBits & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+	//		{
+	//			vmaAllocInfo.requiredFlags |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	//			buffer.m_IsCoherentMemory = true;
+	//		}
+	//	}
+
+	//	vmaAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	//	vmaCreateBuffer((VmaAllocator)getVmaAllocator(), &ci, &vmaAllocInfo, &buffer.m_VkBuffer, &buffer.m_VmaAllocation, nullptr);
+
+	//	if (memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+	//		vmaMapMemory((VmaAllocator)getVmaAllocator(), buffer.m_VmaAllocation, &buffer.m_pMappedPtr);
+	//}
+	//else
+	//{
+		HandleVkResult(vkCreateBuffer(device, &ci, nullptr, &buffer.m_VkBuffer));
+
+		VkMemoryRequirements requirements{};
+		vkGetBufferMemoryRequirements(device, buffer.m_VkBuffer, &requirements);
+		if (requirements.memoryTypeBits & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+			buffer.m_IsCoherentMemory = true;
+
+		constexpr VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+			.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+		};
+
+		const VkMemoryAllocateInfo ai{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.pNext = &memoryAllocateFlagsInfo,
+			.allocationSize = requirements.size,
+			.memoryTypeIndex = m_pGfxDevice->FindMemoryType(requirements.memoryTypeBits, memFlags),
+		};
+
+		HandleVkResult(vkAllocateMemory(device, &ai, nullptr, &buffer.m_VkMemory));
+		HandleVkResult(vkBindBufferMemory(device, buffer.m_VkBuffer, buffer.m_VkMemory, 0));
+
+		if (memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+			HandleVkResult(vkMapMemory(device, buffer.m_VkMemory, 0, buffer.m_BufferSize, 0, &buffer.m_pMappedPtr));
+	//}
+
+	assert(buffer.m_VkBuffer != VK_NULL_HANDLE);
+
+	HandleVkResult(m_pGfxDevice->SetVkObjectName(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<uint64_t>(buffer.m_VkBuffer), desc.m_DebugName));
+
+	if (usageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+	{
+		const VkBufferDeviceAddressInfo addressInfo{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+			.buffer = buffer.m_VkBuffer,
+		};
+		buffer.m_VkDeviceAddress = vkGetBufferDeviceAddress(device, &addressInfo);
+		assert(buffer.m_VkDeviceAddress);
+	}
+
+	return m_BuffersPool.Add(std::move(buffer));
+}
+
+void GraphicsAPI::Destroy(BufferHandle handle)
+{
+	GfxBuffer* buffer{ m_BuffersPool.Get(handle) };
+
+	if (!buffer)
+		return;
+
+	//if (VULKAN_USE_VMA)
+	//{
+	//	if (buffer->m_pMappedPtr)
+	//		vmaUnmapMemory((VmaAllocator)getVmaAllocator(), buf->vmaAllocation_);
+	//	
+	//	AddDeferredTask(std::packaged_task<void()>([vma = getVmaAllocator(), buffer = buffer->m_VkBuffer, allocation = buffer->m_VmaAllocation]()
+	//	{
+	//		vmaDestroyBuffer((VmaAllocator)vma, buffer, allocation);
+	//	}));
+	//}
+	//else
+	//{
+		if (buffer->m_pMappedPtr)
+			vkUnmapMemory(m_pGfxDevice->GetDevice(), buffer->m_VkMemory);
+		
+		AddDeferredTask(std::packaged_task<void()>([device = m_pGfxDevice->GetDevice(), buffer = buffer->m_VkBuffer, memory = buffer->m_VkMemory]()
+		{
+			vkDestroyBuffer(device, buffer, nullptr);
+			vkFreeMemory(device, memory, nullptr);
+		}));
+	//}
+
+	m_BuffersPool.Remove(handle);
+}
+
+TextureHandle GraphicsAPI::AcquireTexture(const TextureDesc& desc)
+{
+	const VkFormat vkFormat{ FormatToVkFormat(desc.m_Format) };
+
+	assert(vkFormat != VK_FORMAT_UNDEFINED && L"Invalid VkFormat value.");
+	assert(desc.m_NumMipLevels && L"The number of mip levels specified must be greater than 0.");
+	assert(!(desc.m_NumSamples > 1 && desc.m_NumMipLevels != 1) && L"The number of mip levels for multisampled images should be 1.");
+	assert(!(desc.m_NumSamples > 1 && desc.m_Type == TextureType_3D) && L"Multisampled 3D images are not supported.");
+	assert(desc.m_NumMipLevels <= CalculateMaxMipLevels(desc.m_Dimensions.m_Width, desc.m_Dimensions.m_Height) && L"The number of specified mip-levels is greater than the maximum possible number of mip-levels.");
+	assert(desc.m_Usage && L"Texture usage flags are not set.");
+
+	VkImageUsageFlags usageFlags = (desc.m_Storage == StorageType_Device) ? VK_IMAGE_USAGE_TRANSFER_DST_BIT : 0;
+
+	if (desc.m_Usage & TextureUsageBits_Sampled)
+		usageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
+	
+	if (desc.m_Usage & TextureUsageBits_Storage)
+	{
+		assert(desc.m_NumSamples <= 1 && L"Storage images cannot be multisampled.");
+		usageFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
+	}
+	if (desc.m_Usage & TextureUsageBits_Attachment)
+	{
+		usageFlags |= sk_textureFormatProperties[desc.m_Format].m_Depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		if (desc.m_Storage == StorageType_Memoryless)
+			usageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+	}
+
+	if (desc.m_Storage != StorageType_Memoryless)
+		usageFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+	assert(usageFlags && "Invalid usage flags.");
+
+	const VkMemoryPropertyFlags memoryFlags{ StorageTypeToVkMemoryPropertyFlags(desc.m_Storage) };
+
+	const bool hasDebugName{ desc.m_DebugName && *desc.m_DebugName };
+
+	char debugNameImage[256]{};
+	char debugNameImageView[256]{};
+
+	if (hasDebugName)
+	{
+		snprintf(debugNameImage, sizeof(debugNameImage) - 1, "Image: %s", desc.m_DebugName);
+		snprintf(debugNameImageView, sizeof(debugNameImageView) - 1, "Image View: %s", desc.m_DebugName);
+	}
+
+	VkImageCreateFlags vkCreateFlags{};
+	VkImageViewType vkImageViewType;
+	VkImageType vkImageType;
+	VkSampleCountFlagBits vkSamples{ VK_SAMPLE_COUNT_1_BIT };
+	uint32_t numLayers{ desc.m_NumLayers };
+	const VkExtent3D vkExtent{ desc.m_Dimensions.m_Width, desc.m_Dimensions.m_Height, desc.m_Dimensions.m_Depth };
+	const uint32_t numLevels{ desc.m_NumMipLevels };
+
+	const VkPhysicalDeviceLimits& limits{ m_pGfxDevice->GetPhysicalDeviceLimits() };
+
+	switch (desc.m_Type)
+	{
+	case TextureType_2D:
+		assert((vkExtent.width <= limits.maxImageDimension2D && vkExtent.height <= limits.maxImageDimension2D) && L"Texture 2D size exceeds limits.");
+		vkImageViewType = numLayers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+		vkImageType = VK_IMAGE_TYPE_2D;
+		const uint32_t maxSampleCount{ limits.framebufferColorSampleCounts & limits.framebufferDepthSampleCounts };
+		vkSamples = GetVulkanSampleCountFlags(desc.m_NumSamples, maxSampleCount);
+		break;
+	case TextureType_3D:
+		assert((vkExtent.width <= limits.maxImageDimension3D && vkExtent.height <= limits.maxImageDimension3D && vkExtent.depth <= limits.maxImageDimension3D) && L"Texture 3D size exceeds limits.");
+		vkImageViewType = VK_IMAGE_VIEW_TYPE_3D;
+		vkImageType = VK_IMAGE_TYPE_3D;
+		break;
+	case TextureType_Cube:
+		vkImageViewType = numLayers > 1 ? VK_IMAGE_VIEW_TYPE_CUBE_ARRAY : VK_IMAGE_VIEW_TYPE_CUBE;
+		vkImageType = VK_IMAGE_TYPE_2D;
+		vkCreateFlags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+		numLayers *= 6;
+		break;
+	}
+
+	assert(numLevels > 0 && L"The image must contain at least one mip-level");
+	assert(numLayers > 0 && L"The image must contain at least one layer");
+	assert(vkSamples > 0 && L"The image must contain at least one sample");
+	assert(vkExtent.width > 0);
+	assert(vkExtent.height > 0);
+	assert(vkExtent.depth > 0);
+
+	GfxImage image{
+		.m_VkUsageFlags = usageFlags,
+		.m_VkExtent = vkExtent,
+		.m_VkType = vkImageType,
+		.m_VkImageFormat = vkFormat,
+		.m_VkSamples = vkSamples,
+		.m_NumLevels = numLevels,
+		.m_NumLayers = numLayers,
+		.m_IsDepthFormat = GfxImage::IsDepthFormat(vkFormat),
+		.m_IsStencilFormat = GfxImage::IsStencilFormat(vkFormat),
+		.m_pGraphicsAPI = this
+	};
+
+	if (hasDebugName)
+		snprintf(image.m_DebugName, sizeof(image.m_DebugName) - 1, "%s", desc.m_DebugName);
+
+	const VkImageCreateInfo ci{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = vkCreateFlags,
+		.imageType = vkImageType,
+		.format = vkFormat,
+		.extent = vkExtent,
+		.mipLevels = numLevels,
+		.arrayLayers = numLayers,
+		.samples = vkSamples,
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.usage = usageFlags,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = nullptr,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+	};
+
+	//if (VULKAN_USE_VMA)
+	//{
+	//	VmaAllocationCreateInfo vmaAllocInfo{
+	//		.usage = memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_AUTO,
+	//	};
+
+	//	VkResult result{ vmaCreateImage((VmaAllocator)GetVmaAllocator(), &ci, &vmaAllocInfo, &image.m_VkImage, &image.m_VmaAllocation, nullptr) };
+
+	//	if (!LVK_VERIFY(result == VK_SUCCESS))
+	//	{
+	//		Logger::Get().LogError(std::format(L"Failed to create vk image: {}, memflags: {},  imageformat: {}\n", result, memFlags, image.m_VkImageFormat));
+	//		return {};
+	//	}
+
+	//	if (memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+	//		vmaMapMemory((VmaAllocator)GetVmaAllocator(), image.m_VmaAllocation, &image.m_MappedPtr);
+	//}
+	//else
+	//{
+		const auto& device{ m_pGfxDevice->GetDevice() };
+		HandleVkResult(vkCreateImage(device, &ci, nullptr, &image.m_VkImage));
+
+		VkMemoryRequirements2 memRequirements{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2
+		};
+
+		const VkImage img = image.m_VkImage;
+
+		const VkImageMemoryRequirementsInfo2 imgRequirements{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+			.image = img
+		};
+
+		vkGetImageMemoryRequirements2(device, &imgRequirements, &memRequirements);
+
+		const VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+			.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+		};
+
+		const VkMemoryAllocateInfo allocateInfo{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.pNext = &memoryAllocateFlagsInfo,
+			.allocationSize = memRequirements.memoryRequirements.size,
+			.memoryTypeIndex = m_pGfxDevice->FindMemoryType(memRequirements.memoryRequirements.memoryTypeBits, memoryFlags),
+		};
+
+		vkAllocateMemory(device, &allocateInfo, nullptr, &image.m_VkMemory);
+
+		const VkBindImageMemoryInfo bindInfo{
+			.sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
+			.image = image.m_VkImage,
+			.memory = image.m_VkMemory
+		};
+		HandleVkResult(vkBindImageMemory2(device, 1, &bindInfo));
+
+		if (memoryFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+			HandleVkResult(vkMapMemory(device, image.m_VkMemory, 0, VK_WHOLE_SIZE, 0, &image.m_MappedPtr));
+	//}
+
+	HandleVkResult(m_pGfxDevice->SetVkObjectName(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(image.m_VkImage), debugNameImage));
+
+	vkGetPhysicalDeviceFormatProperties(m_pGfxDevice->GetPhysicalDevice(), image.m_VkImageFormat, &image.m_VkFormatProperties);
+
+	VkImageAspectFlags aspect = 0;
+	if (image.m_IsDepthFormat || image.m_IsStencilFormat)
+	{
+		if (image.m_IsDepthFormat)
+			aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
+		
+		else if (image.m_IsStencilFormat)
+			aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+	}
+	else
+		aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	const VkComponentMapping mapping{
+		.r = static_cast<VkComponentSwizzle>(desc.m_Swizzle.m_R),
+		.g = static_cast<VkComponentSwizzle>(desc.m_Swizzle.m_G),
+		.b = static_cast<VkComponentSwizzle>(desc.m_Swizzle.m_B),
+		.a = static_cast<VkComponentSwizzle>(desc.m_Swizzle.m_A),
+	};
+
+	image.m_ImageView = image.CreateImageView(vkImageViewType, vkFormat, aspect, 0, VK_REMAINING_MIP_LEVELS, 0, numLayers, mapping, debugNameImageView);
+	assert(image.m_ImageView != VK_NULL_HANDLE && L"Unable to create image view.");
+
+	if (image.m_VkUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT)
+	{
+		// use identity swizzle for storage images
+		image.m_ImageViewStorage = image.CreateImageView(vkImageViewType, vkFormat, aspect, 0, VK_REMAINING_MIP_LEVELS, 0, numLayers, {}, debugNameImageView);
+		assert(image.m_ImageViewStorage != VK_NULL_HANDLE && L"Unable to create image view.");
+	}
+
+	m_AwaitingDescriptorsCreation = true;
+
+	/*if (desc.m_Data)
+	{
+		assert(desc.m_Type == TextureType_2D || desc.m_Type == TextureType_Cube);
+		assert(desc.m_DataNumMipLevels <= desc.m_NumMipLevels);
+		const uint32_t numLayers = desc.m_Type == TextureType_Cube ? 6 : 1;
+
+		Upload(handle, { .dimensions = desc.m_Dimensions, .numLayers = numLayers, .numMipLevels = desc.m_DataNumMipLevels }, desc.m_Data);
+		
+		if (desc.m_GenerateMipmaps)
+			this->GenerateMipmap(handle);
+		
+	}*/
+
+	return { m_TexturesPool.Add(std::move(image)) };
+}
+
+void GraphicsAPI::Destroy(TextureHandle handle)
+{
+	const auto& device{ GetGfxDevice()->GetDevice() };
+
+	const GfxImage* image{ m_TexturesPool.Get(handle) };
+
+	if (image->m_ImageView != VK_NULL_HANDLE)
+	{
+		AddDeferredTask(std::packaged_task<void()>([device = device, imageView = image->m_ImageView]()
+		{
+			vkDestroyImageView(device, imageView, nullptr);
+		}));
+	}
+
+	if (image->m_ImageViewStorage != VK_NULL_HANDLE)
+	{
+		AddDeferredTask(std::packaged_task<void()>([device = device, imageView = image->m_ImageViewStorage]()
+		{
+			vkDestroyImageView(device, imageView, nullptr);
+		}));
+	}
+
+	for (size_t i{}; i != GfxImage::sk_MaxMipLevels; ++i)
+	{
+		for (size_t j{}; j != GfxImage::sk_MaxArrayLayers; ++j)
+		{
+			VkImageView view{ image->m_ImageViewForFramebuffer[i][j] };
+			if (view != VK_NULL_HANDLE)
+			{
+				AddDeferredTask(std::packaged_task<void()>([device = device, imageView = view]()
+				{
+					vkDestroyImageView(device, imageView, nullptr);
+				}));
+			}
+		}
+	}
+
+	if (!image->m_IsOwningVkImage)
+		return;
+
+	/*if (VULKAN_USE_VMA)
+	{
+		if (tex->mappedPtr_)
+			vmaUnmapMemory((VmaAllocator)GetVmaAllocator(), tex->m_VmaAllocation);
+
+		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([vma = GetVmaAllocator(), image = tex->m_VkImage, allocation = tex->m_VmaAllocation](
+		{
+			vmaDestroyImage((VmaAllocator)vma, image, allocation);
+		}));
+	}
+	else
+	{*/
+	if (image->m_MappedPtr)
+		vkUnmapMemory(device, image->m_VkMemory);
+
+	AddDeferredTask(std::packaged_task<void()>([device = device, image = image->m_VkImage, memory = image->m_VkMemory]()
+		{
+			vkDestroyImage(device, image, nullptr);
+			if (memory != VK_NULL_HANDLE)
+				vkFreeMemory(device, memory, nullptr);
+		}));
+	/*}*/
+
+	m_TexturesPool.Remove(handle);
 }
 
 void GraphicsAPI::ProcessDeferredTasks()
@@ -665,6 +1157,40 @@ void GraphicsAPI::CreateTextureImage()
 	samplerInfo.maxLod = static_cast<float>(m_pTestModelTextureImage->m_NumLevels);
 
 	HandleVkResult(vkCreateSampler(device, &samplerInfo, nullptr, &m_VkTestModelTextureSampler));
+}
+
+uint32_t GraphicsAPI::CalculateMaxMipLevels(uint32_t width, uint32_t height)
+{
+	uint32_t levels{};
+	do
+	{
+		++levels;
+	} while ((width | height) >> levels);
+
+	return levels;
+}
+
+VkSampleCountFlagBits GraphicsAPI::GetVulkanSampleCountFlags(uint32_t numSamples, VkSampleCountFlags maxSamplesMask)
+{
+	if (numSamples <= 1 || VK_SAMPLE_COUNT_2_BIT > maxSamplesMask)
+		return VK_SAMPLE_COUNT_1_BIT;
+	
+	if (numSamples <= 2 || VK_SAMPLE_COUNT_4_BIT > maxSamplesMask)
+		return VK_SAMPLE_COUNT_2_BIT;
+	
+	if (numSamples <= 4 || VK_SAMPLE_COUNT_8_BIT > maxSamplesMask)
+		return VK_SAMPLE_COUNT_4_BIT;
+	
+	if (numSamples <= 8 || VK_SAMPLE_COUNT_16_BIT > maxSamplesMask)
+		return VK_SAMPLE_COUNT_8_BIT;
+	
+	if (numSamples <= 16 || VK_SAMPLE_COUNT_32_BIT > maxSamplesMask)
+		return VK_SAMPLE_COUNT_16_BIT;
+	
+	if (numSamples <= 32 || VK_SAMPLE_COUNT_64_BIT > maxSamplesMask)
+		return VK_SAMPLE_COUNT_32_BIT;
+	
+	return VK_SAMPLE_COUNT_64_BIT;
 }
 
 #endif

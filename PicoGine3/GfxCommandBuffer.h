@@ -4,15 +4,15 @@
 #include "GfxRenderPipeline.h"
 
 #include "GfxStructs.h"
-class GfxImmediateCommands;
+class GraphicsAPI;
 struct CommandBufferWrapper;
 
 class GfxCommandBuffer final
 {
 public:
 	explicit GfxCommandBuffer() = default;
-	explicit GfxCommandBuffer(GfxImmediateCommands* pGfxImmediateCommands);
-	~GfxCommandBuffer() = default;
+	explicit GfxCommandBuffer(GraphicsAPI* pGraphicsAPI);
+	~GfxCommandBuffer();
 
 	GfxCommandBuffer(const GfxCommandBuffer&) noexcept = delete;
 	GfxCommandBuffer& operator=(const GfxCommandBuffer&) noexcept = delete;
@@ -37,8 +37,8 @@ public:
 	void BeginRendering(const RenderPass& renderPass, const Framebuffer& frameBuffer, const Dependencies& dependencies = {});
 	void EndRendering();
 
-	void BindViewport(const Viewport& viewport);
-	void BindScissorRect(const ScissorRect& scissor);
+	void BindViewport(const Viewport& viewport) const;
+	void BindScissorRect(const ScissorRect& scissor) const;
 
 	void BindRenderPipeline(const GfxRenderPipeline& pipeline);
 	void BindDepthState(const DepthState& state);
@@ -85,11 +85,16 @@ public:
 	//void UpdateTLAS(AccelStructHandle handle, BufferHandle instancesBuffer) override;
 
 private:
-	GfxImmediateCommands* m_pGfxImmediateCommands{};
+	GraphicsAPI* m_pGraphicsAPI{};
 	const CommandBufferWrapper* m_pWrapper{};
 
-	void UseComputeTexture(GfxImage* texture, VkPipelineStageFlags2 dstStage);
+	bool m_IsRendering{};
+	Framebuffer m_FrameBuffer{};
+
+	void UseComputeTexture(GfxImage* texture, VkPipelineStageFlags2 dstStage) const;
 	void BufferBarrier(GfxBuffer* buffer, VkPipelineStageFlags2 srcStage, VkPipelineStageFlags2 dstStage);
+	void TransitionToColorAttachment(GfxImage* texture) const;
+	
 };
 
 #endif //GFXCOMMANDBUFFER_H

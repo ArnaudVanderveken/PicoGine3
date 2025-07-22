@@ -5,289 +5,93 @@
 
 #pragma region GfxBuffer
 
-GfxBuffer::GfxBuffer(GraphicsAPI* pGraphicsAPI, size_t elementStride, size_t elementCount, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryFlags, size_t minAlignmentOffset) :
-	m_pGraphicsAPI{ pGraphicsAPI },
-	m_pMappedMemory{ nullptr },
-	m_VkDeviceAddress{ 0 },
-	m_UsageFlags{ usageFlags },
-	m_MemoryFlags{ memoryFlags },
-	m_ElementStride{ elementStride },
-	m_ElementCount{ elementCount }
+uint8_t* GfxBuffer::GetMappedPtr() const
 {
-	const auto& device{ m_pGraphicsAPI->GetGfxDevice() };
-
-	m_AlignmentSize = GetAlignment(elementStride, minAlignmentOffset);
-	m_BufferSize = elementCount * m_AlignmentSize;
-	device->CreateBuffer(m_BufferSize, usageFlags, memoryFlags, m_Buffer, m_BufferMemory);
+	return static_cast<uint8_t*>(m_pMappedPtr);
 }
 
-GfxBuffer::~GfxBuffer()
+bool GfxBuffer::IsMapped() const
 {
-	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
-
-	Unmap();
-
-	m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, buffer = m_Buffer, memory = m_BufferMemory]()
-		{
-			vkDestroyBuffer(device, buffer, nullptr);
-			vkFreeMemory(device, memory, nullptr);
-		}));
-
+	return m_pMappedPtr != nullptr;
 }
 
-void GfxBuffer::Map(size_t size, size_t offset)
+void GfxBuffer::WriteBufferData(size_t offset, size_t size, const void* data) const
 {
-	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+	assert(m_pMappedPtr && L"Cannot write to unmapped buffer.");
 
-	const size_t mappedSize{ std::min(size, m_BufferSize) };
-	HandleVkResult(vkMapMemory(device, m_BufferMemory, offset, mappedSize, 0, &m_pMappedMemory));
-}
+	if (!m_pMappedPtr)
+		return;
 
-void GfxBuffer::Unmap()
-{
-	if (m_pMappedMemory)
-	{
-		const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+	assert(offset + size <= m_BufferSize && L"Requested region overflows buffer size.");
 
-		vkUnmapMemory(device, m_BufferMemory);
-		m_pMappedMemory = nullptr;
-	}
-}
-
-size_t GfxBuffer::GetBufferSize() const
-{
-	return m_BufferSize;
-}
-
-void GfxBuffer::WriteToBuffer(const void* data, size_t size, size_t offset) const
-{
-	assert(m_pMappedMemory && L"Cannot write to unmapped buffer!");
-
-	if (size == ~0ULL)
-		memcpy(m_pMappedMemory, data, m_BufferSize);
-
+	if (data)
+		memcpy(static_cast<uint8_t*>(m_pMappedPtr) + offset, data, size);
 	else
-	{
-		char* memOffset = static_cast<char*>(m_pMappedMemory);
-		memOffset += offset;
-		memcpy(memOffset, data, size);
-	}
+		memset(static_cast<uint8_t*>(m_pMappedPtr) + offset, 0, size);
+
+	if (!m_IsCoherentMemory)
+		FlushMappedMemory(offset, size);
 }
 
-void GfxBuffer::Flush(size_t size, size_t offset) const
+void GfxBuffer::GetBufferData(size_t offset, size_t size, void* data) const
 {
-	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+	assert(m_pMappedPtr && L"Cannot write to unmapped buffer.");
 
-	VkMappedMemoryRange mappedRange{};
-	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-	mappedRange.memory = m_BufferMemory;
-	mappedRange.offset = offset;
-	mappedRange.size = size;
-	HandleVkResult(vkFlushMappedMemoryRanges(device, 1, &mappedRange));
+	if (!m_pMappedPtr)
+		return;
+
+	assert(offset + size <= m_BufferSize && L"Requested region overflows buffer size.");
+
+	if (!m_IsCoherentMemory)
+		InvalidateMappedMemory(offset, size);
+
+	const uint8_t* src = static_cast<uint8_t*>(m_pMappedPtr) + offset;
+	memcpy(data, src, size);
 }
 
-void GfxBuffer::Invalidate(size_t size, size_t offset) const
+void GfxBuffer::FlushMappedMemory(VkDeviceSize offset, VkDeviceSize size) const
 {
-	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
+	if (!m_pMappedPtr)
+		return;
 
-	VkMappedMemoryRange mappedRange{};
-	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-	mappedRange.memory = m_BufferMemory;
-	mappedRange.offset = offset;
-	mappedRange.size = size;
-	HandleVkResult(vkInvalidateMappedMemoryRanges(device, 1, &mappedRange));
+	/*if (VULKAN_USE_VMA)
+		vmaFlushAllocation((VmaAllocator)ctx.getVmaAllocator(), vmaAllocation_, offset, size);
+	
+	else
+	{*/
+		const VkMappedMemoryRange range{
+			.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+			.memory = m_VkMemory,
+			.offset = offset,
+			.size = size,
+		};
+		vkFlushMappedMemoryRanges(m_pGraphicsAPI->GetGfxDevice()->GetDevice(), 1, &range);
+	//}
 }
 
-void GfxBuffer::WriteToIndex(const void* data, int index) const
+void GfxBuffer::InvalidateMappedMemory(VkDeviceSize offset, VkDeviceSize size) const
 {
-	WriteToBuffer(data, m_ElementStride, index * m_AlignmentSize);
-}
+	if (!m_pMappedPtr)
+		return;
 
-void GfxBuffer::FlushIndex(int index) const
-{
-	Flush(m_AlignmentSize, index * m_AlignmentSize);
-}
-
-void GfxBuffer::InvalidateIndex(int index) const
-{
-	Invalidate(m_AlignmentSize, index * m_AlignmentSize);
-}
-
-VkBuffer GfxBuffer::GetBuffer() const
-{
-	return m_Buffer;
-}
-
-VkDeviceMemory GfxBuffer::GetBufferMemory() const
-{
-	return m_BufferMemory;
-}
-
-size_t GfxBuffer::GetAlignment(size_t elementStride, size_t minAlignmentOffset)
-{
-	if (minAlignmentOffset > 0)
-		return (elementStride + minAlignmentOffset - 1) & ~(minAlignmentOffset - 1);
-
-	return elementStride;
+	/*if (VULKAN_USE_VMA)
+		vmaInvalidateAllocation(static_cast<VmaAllocator>(ctx.GetVmaAllocator()), vmaAllocation_, offset, size);
+	
+	else
+	{*/
+		const VkMappedMemoryRange range{
+			.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+			.memory = m_VkMemory,
+			.offset = offset,
+			.size = size,
+		};
+		vkInvalidateMappedMemoryRanges(m_pGraphicsAPI->GetGfxDevice()->GetDevice(), 1, &range);
+	//}
 }
 
 #pragma endregion
 
 #pragma region GfxImage
-
-GfxImage::GfxImage(GraphicsAPI* pGraphicsAPI) :
-	m_pGraphicsAPI{ pGraphicsAPI }
-{
-}
-
-GfxImage::~GfxImage()
-{
-	const auto& device{ m_pGraphicsAPI->GetGfxDevice()->GetDevice() };
-
-	if (m_ImageView != VK_NULL_HANDLE)
-	{
-		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = m_ImageView]()
-			{
-				vkDestroyImageView(device, imageView, nullptr);
-			}));
-	}
-
-	if (m_ImageViewStorage != VK_NULL_HANDLE)
-	{
-		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = m_ImageViewStorage]()
-			{
-				vkDestroyImageView(device, imageView, nullptr);
-			}));
-	}
-
-	for (size_t i{}; i != sk_MaxMipLevels; ++i)
-	{
-		for (size_t j{}; j != sk_MaxArrayLayers; ++j)
-		{
-			VkImageView view{ m_ImageViewForFramebuffer[i][j] };
-			if (view != VK_NULL_HANDLE)
-			{
-				m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, imageView = view]()
-					{
-						vkDestroyImageView(device, imageView, nullptr);
-					}));
-			}
-		}
-	}
-
-	if (!m_IsOwningVkImage)
-		return;
-
-	/*if (LVK_VULKAN_USE_VMA && tex->vkMemory_[1] == VK_NULL_HANDLE)
-	{
-		if (tex->mappedPtr_) {
-			vmaUnmapMemory((VmaAllocator)getVmaAllocator(), tex->vmaAllocation_);
-		}
-		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([vma = getVmaAllocator(), image = tex->vkImage_, allocation = tex->vmaAllocation_]() {
-			vmaDestroyImage((VmaAllocator)vma, image, allocation);
-			}));
-	}
-	else
-	{*/
-		if (m_MappedPtr)
-			vkUnmapMemory(device, m_VkMemory[0]);
-
-		m_pGraphicsAPI->AddDeferredTask(std::packaged_task<void()>([device = device, image = m_VkImage, memory0 = m_VkMemory[0], memory1 = m_VkMemory[1], memory2 = m_VkMemory[2]]()
-		{
-			vkDestroyImage(device, image, nullptr);
-			if (memory0 != VK_NULL_HANDLE)
-				vkFreeMemory(device, memory0, nullptr);
-
-			if (memory1 != VK_NULL_HANDLE)
-				vkFreeMemory(device, memory1, nullptr);
-
-			if (memory2 != VK_NULL_HANDLE)
-				vkFreeMemory(device, memory2, nullptr);
-
-		}));
-	/*}*/
-}
-
-GfxImage::GfxImage(GfxImage&& other) noexcept :
-	m_VkImage{ other.m_VkImage },
-	m_VkFormatProperties{ other.m_VkFormatProperties },
-	//m_VmaAllocation{ other.m_VmaAllocation },
-	m_VkExtent{ other.m_VkExtent },
-	m_VkType{ other.m_VkType },
-	m_VkImageFormat{ other.m_VkImageFormat },
-	m_VkSamples{ other.m_VkSamples },
-	m_MappedPtr{ other.m_MappedPtr },
-	m_IsSwapchainImage{ other.m_IsSwapchainImage },
-	m_IsOwningVkImage{ other.m_IsOwningVkImage },
-	m_IsResolveAttachment{ other.m_IsResolveAttachment },
-	m_NumLevels{ other.m_NumLevels },
-	m_NumLayers{ other.m_NumLayers },
-	m_IsDepthFormat{ other.m_IsDepthFormat },
-	m_IsStencilFormat{ other.m_IsStencilFormat },
-	m_CurrentVkImageLayout{ other.m_CurrentVkImageLayout },
-	m_ImageView{ other.m_ImageView },
-	m_ImageViewStorage{ other.m_ImageViewStorage },
-	m_ImageViewForFramebuffer{ other.m_ImageViewStorage },
-	m_pGraphicsAPI{ other.m_pGraphicsAPI }
-{
-	m_VkMemory[0] = other.m_VkMemory[0];
-	m_VkMemory[1] = other.m_VkMemory[1];
-	m_VkMemory[2] = other.m_VkMemory[2];
-
-	memcpy(m_DebugName, other.m_DebugName, 256);
-
-	other.m_VkImage = VK_NULL_HANDLE;
-	other.m_VkMemory[0] = VK_NULL_HANDLE;
-	other.m_VkMemory[1] = VK_NULL_HANDLE;
-	other.m_VkMemory[2] = VK_NULL_HANDLE;
-	//other.m_VmaAllocation = VK_NULL_HANDLE;
-	other.m_MappedPtr = nullptr;
-	other.m_IsOwningVkImage = false;
-	other.m_ImageView = VK_NULL_HANDLE;
-	other.m_ImageViewStorage = VK_NULL_HANDLE;
-	memset(other.m_ImageViewForFramebuffer, 0, sizeof(VkImageView) * sk_MaxArrayLayers * sk_MaxMipLevels);
-}
-
-GfxImage& GfxImage::operator=(GfxImage&& other) noexcept
-{
-	m_VkImage = other.m_VkImage;
-	m_VkUsageFlags = other.m_VkUsageFlags;
-	m_VkMemory[0] = other.m_VkMemory[0];
-	m_VkMemory[1] = other.m_VkMemory[1];
-	m_VkMemory[2] = other.m_VkMemory[2];
-	//m_VmaAllocation = other.m_VmaAllocation;
-	m_VkFormatProperties = other.m_VkFormatProperties;
-	m_VkExtent = other.m_VkExtent;
-	m_VkType = other.m_VkType;
-	m_VkImageFormat = other.m_VkImageFormat;
-	m_VkSamples = other.m_VkSamples;
-	m_MappedPtr = other.m_MappedPtr;
-	m_IsSwapchainImage = other.m_IsSwapchainImage;
-	m_IsOwningVkImage = other.m_IsOwningVkImage;
-	m_IsResolveAttachment = other.m_IsResolveAttachment;
-	m_NumLevels = other.m_NumLevels;
-	m_NumLayers = other.m_NumLayers;
-	m_IsDepthFormat = other.m_IsDepthFormat;
-	m_IsStencilFormat = other.m_IsStencilFormat;
-	memcpy(m_DebugName, other.m_DebugName, 256);
-	m_CurrentVkImageLayout = other.m_CurrentVkImageLayout;
-	m_ImageView = other.m_ImageView;
-	m_ImageViewStorage = other.m_ImageViewStorage;
-	memcpy(m_ImageViewForFramebuffer, other.m_ImageViewForFramebuffer, sizeof(VkImageView) * sk_MaxArrayLayers * sk_MaxMipLevels);
-
-	other.m_VkImage = VK_NULL_HANDLE;
-	other.m_VkMemory[0] = VK_NULL_HANDLE;
-	other.m_VkMemory[1] = VK_NULL_HANDLE;
-	other.m_VkMemory[2] = VK_NULL_HANDLE;
-	//other.m_VmaAllocation = VK_NULL_HANDLE;
-	other.m_MappedPtr = nullptr;
-	other.m_IsOwningVkImage = false;
-	other.m_ImageView = VK_NULL_HANDLE;
-	other.m_ImageViewStorage = VK_NULL_HANDLE;
-	memset(other.m_ImageViewForFramebuffer, 0, sizeof(VkImageView) * sk_MaxArrayLayers * sk_MaxMipLevels);
-
-	return *this;
-}
 
 bool GfxImage::IsSampledImage() const
 {
@@ -417,7 +221,6 @@ VkImageView GfxImage::CreateImageView(VkImageViewType type,
 	uint32_t baseLayer,
 	uint32_t numLayers,
 	const VkComponentMapping mapping,
-	const VkSamplerYcbcrConversionInfo* ycbcr,
 	const char* debugName) const
 {
 	const auto& gfxDevice{ m_pGraphicsAPI->GetGfxDevice() };
@@ -425,7 +228,6 @@ VkImageView GfxImage::CreateImageView(VkImageViewType type,
 	const VkImageViewCreateInfo createInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.pNext = ycbcr,
 		.image = m_VkImage,
 		.viewType = type,
 		.format = format,
@@ -650,6 +452,5 @@ bool GfxImage::IsStencilFormat(VkFormat format)
 	return (format == VK_FORMAT_S8_UINT) || (format == VK_FORMAT_D16_UNORM_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT) ||
 		(format == VK_FORMAT_D32_SFLOAT_S8_UINT);
 }
-
 
 #pragma endregion

@@ -54,14 +54,19 @@ VkPhysicalDevice GfxDevice::GetPhysicalDevice() const
 	return m_VkPhysicalDevice;
 }
 
-VkPhysicalDeviceProperties GfxDevice::GetPhysicalDeviceProperties() const
+const VkPhysicalDeviceProperties& GfxDevice::GetPhysicalDeviceProperties() const
 {
 	return m_VkPhysicalDeviceProperties2.properties;
 }
 
-VkPhysicalDeviceProperties2 GfxDevice::GetPhysicalDeviceProperties2() const
+const VkPhysicalDeviceProperties2& GfxDevice::GetPhysicalDeviceProperties2() const
 {
 	return m_VkPhysicalDeviceProperties2;
+}
+
+const VkPhysicalDeviceLimits& GfxDevice::GetPhysicalDeviceLimits() const
+{
+	return m_VkPhysicalDeviceProperties2.properties.limits;
 }
 
 VkSurfaceKHR GfxDevice::GetSurface() const

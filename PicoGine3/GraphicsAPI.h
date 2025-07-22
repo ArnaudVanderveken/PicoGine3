@@ -8,6 +8,14 @@
 #include "GfxSwapchain.h"
 #include "ShaderModulePool.h"
 
+#include "Pool.h"
+using BufferHandle = Handle<GfxBuffer>;
+using TextureHandle = Handle<GfxImage>;
+using RenderPipelineHandle = Handle<GfxRenderPipeline>;
+//using ComputePipelineHandle = Handle<GfxComputePipeline>;
+//using RayTracingPipelineHandle = Handle<GfxRayTracingPipeline>;
+//using SamplerHandle = Handle<GfxSampler>;
+
 #if defined(_DX12)
 
 #include <d3d12.h>
@@ -89,6 +97,14 @@ public:
 	SubmitHandle SubmitCommandBuffer(bool present = false);
 	void AddDeferredTask(std::packaged_task<void()>&& task, SubmitHandle handle = SubmitHandle());
 
+	void CheckAndUpdateDescriptorSets();
+
+	BufferHandle AcquireBuffer(const BufferDesc& desc);
+	void Destroy(BufferHandle handle);
+
+	TextureHandle AcquireTexture(const TextureDesc& desc);
+	void Destroy(TextureHandle handle);
+
 private:
 	bool m_IsInitialized;
 
@@ -108,9 +124,14 @@ private:
 	std::vector<std::unique_ptr<GfxBuffer>> m_PerFrameUBO;
 	VkDescriptorPool m_VkDescriptorPool;
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
+	mutable bool m_AwaitingDescriptorsCreation{};
 
 	std::unique_ptr<GfxImage> m_pTestModelTextureImage;
 	VkSampler m_VkTestModelTextureSampler;
+
+	Pool<GfxBuffer> m_BuffersPool;
+	Pool<GfxImage> m_TexturesPool;
+	Pool<GfxRenderPipeline> m_RenderPipelinesPool;
 
 	void ProcessDeferredTasks();
 	void WaitDeferredTasks();
@@ -123,6 +144,9 @@ private:
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateTextureImage();
+
+	static uint32_t CalculateMaxMipLevels(uint32_t width, uint32_t height);
+	static VkSampleCountFlagBits GetVulkanSampleCountFlags(uint32_t numSamples, VkSampleCountFlags maxSamplesMask);
 };
 
 #endif

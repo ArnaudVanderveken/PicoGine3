@@ -185,6 +185,8 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 {
 	const auto& resourceManager{ ResourceManager::Get() };
 	const auto& meshData{ resourceManager.GetMeshData(meshDataID) };
+	const auto& vertexBuffer{ m_BuffersPool.Get(meshData.m_pVertexBufferHandle) };
+	const auto& indexBuffer{ m_BuffersPool.Get(meshData.m_pIndexBufferHandle) };
 	const auto currentFrameIndex{ m_pGfxSwapchain->GetCurrentFrameIndex() % GfxSwapchain::sk_MaxFramesInFlight };
 
 	const auto cmdBuffer{ m_CurrentCommandBuffer.GetCmdBuffer() };
@@ -198,7 +200,7 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 
 	const VkBuffer vertexBuffers[]
 	{
-		meshData.m_pVertexBuffer->GetBuffer()
+		vertexBuffer->m_VkBuffer
 	};
 
 	constexpr VkDeviceSize offsets[]
@@ -209,7 +211,7 @@ void GraphicsAPI::DrawMesh(uint32_t meshDataID, uint32_t /*materialID*/, const X
 	vkCmdPushConstants(cmdBuffer, m_VkGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 
 	vkCmdBindVertexBuffers(cmdBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(cmdBuffer, meshData.m_pIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(cmdBuffer, indexBuffer->m_VkBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_VkGraphicsPipelineLayout, 0, 1, &m_VkDescriptorSets[currentFrameIndex], 0, nullptr);
 
 	vkCmdDrawIndexed(cmdBuffer, meshData.m_IndexCount, 1, 0, 0, 0);
@@ -465,6 +467,11 @@ void GraphicsAPI::Destroy(BufferHandle handle)
 	//}
 
 	m_BuffersPool.Remove(handle);
+}
+
+GfxBuffer* GraphicsAPI::GetBuffer(BufferHandle handle) const
+{
+	return m_BuffersPool.Get(handle);
 }
 
 TextureHandle GraphicsAPI::AcquireTexture(const TextureDesc& desc)
@@ -763,6 +770,11 @@ void GraphicsAPI::Destroy(TextureHandle handle)
 	m_TexturesPool.Remove(handle);
 }
 
+GfxImage* GraphicsAPI::GetTexture(TextureHandle handle) const
+{
+	return m_TexturesPool.Get(handle);
+}
+
 void GraphicsAPI::ProcessDeferredTasks()
 {
 	while (m_DeferredTasks.empty() && m_pGfxImmediateCommands->IsReady(m_DeferredTasks.front().m_Handle, true))
@@ -980,8 +992,12 @@ void GraphicsAPI::CreateUniformBuffers()
 
 	for (uint32_t i{}; i < GfxSwapchain::sk_MaxFramesInFlight; ++i)
 	{
-		m_PerFrameUBO[i] = std::make_unique<GfxBuffer>(this, sizeof(PerFrameUBO), 1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		m_PerFrameUBO[i]->Map();
+		BufferDesc ubDesc{
+			.m_Usage = BufferUsageBits_Uniform,
+			.m_Storage = StorageType_HostVisible,
+			.m_Size = sizeof(PerFrameUBO)
+		};
+		m_PerFrameUBO[i] = AcquireBuffer(ubDesc);
 	}
 }
 
@@ -1006,7 +1022,8 @@ void GraphicsAPI::UpdatePerFrameUBO() const
 	XMStoreFloat4x4(&ubo.m_ViewProjMat, viewProjMat);
 	XMStoreFloat4x4(&ubo.m_ViewProjInvMat, XMMatrixInverse(nullptr, viewProjMat));
 
-	m_PerFrameUBO[currentFrame]->WriteToBuffer(&ubo);
+	const auto& currentFrameUBO{ m_BuffersPool.Get(m_PerFrameUBO[currentFrame]) };
+	currentFrameUBO->WriteBufferData(0, sizeof(PerFrameUBO), &ubo);
 }
 
 void GraphicsAPI::CreateDescriptorPool()
@@ -1045,8 +1062,9 @@ void GraphicsAPI::CreateDescriptorSets()
 
 	for (size_t i{}; i < GfxSwapchain::sk_MaxFramesInFlight; ++i)
 	{
+		const auto& perFrameUBO{ m_BuffersPool.Get(m_PerFrameUBO[i]) };
 		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = m_PerFrameUBO[i]->GetBuffer();
+		bufferInfo.buffer = perFrameUBO->m_VkBuffer;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(PerFrameUBO);
 
@@ -1091,13 +1109,24 @@ void GraphicsAPI::CreateTextureImage()
 
 	const uint32_t mipLevels{ static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1 };
 
-	GfxBuffer stagingBuffer{ this, imageSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
-	stagingBuffer.Map();
-	stagingBuffer.WriteToBuffer(pixels);
-	stagingBuffer.Unmap();
+	// TODO: Move staging buffer to separate pool
+	const BufferDesc sbDesc{
+		.m_Usage = BufferUsageBits_Storage,
+		.m_Storage = StorageType_HostVisible,
+		.m_Size = imageSize,
+		.m_Data = pixels
+	};
 
 	stbi_image_free(pixels);
 
+	const TextureDesc tDesc{
+		.m_Type = TextureType_2D,
+		.m_Format = R8G8B8A8_SRGB,
+		.m_Dimensions = {static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1},
+		.m_Usage = TextureUsageBits_Storage | TextureUsageBits_Sampled,
+		.m_NumMipLevels = mipLevels,
+		.m_Storage = StorageType_Device
+	};
 	m_pTestModelTextureImage = std::make_unique<GfxImage>(this);
 	m_pTestModelTextureImage->m_VkUsageFlags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	m_pTestModelTextureImage->m_VkExtent = VkExtent3D{ static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1 };
@@ -1114,7 +1143,7 @@ void GraphicsAPI::CreateTextureImage()
 							  m_pTestModelTextureImage->m_VkUsageFlags,
 							  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 							  m_pTestModelTextureImage->m_VkImage,
-							  m_pTestModelTextureImage->m_VkMemory[0]);
+							  m_pTestModelTextureImage->m_VkMemory);
 
 	m_pTestModelTextureImage->m_ImageView = m_pTestModelTextureImage->CreateImageView(VK_IMAGE_VIEW_TYPE_2D,
 																					  m_pTestModelTextureImage->m_VkImageFormat,

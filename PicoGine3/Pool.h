@@ -109,7 +109,7 @@ public:
 		--m_ObjectCount;
 	}
 
-	[[nodiscard]] ObjType* Get(Handle<ObjType> handle)
+	[[nodiscard]] ObjType* Get(Handle<ObjType> handle) const
 	{
 		if (handle.empty())
 			return nullptr;

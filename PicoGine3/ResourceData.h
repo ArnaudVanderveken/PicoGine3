@@ -8,30 +8,72 @@
 struct MeshData
 {
 	explicit MeshData(GraphicsAPI* pGraphicsAPI, const std::vector<Vertex3D>& vertices, const std::vector<uint32_t>& indices) :
-		m_pVertexBuffer{ std::make_unique<GfxBuffer>(pGraphicsAPI, sizeof(Vertex3D), vertices.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT , VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) },
-		m_pIndexBuffer{ std::make_unique<GfxBuffer>(pGraphicsAPI, sizeof(uint32_t), indices.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) },
+		m_pGraphicsAPI{ pGraphicsAPI },
 		m_IndexCount{ static_cast<uint32_t>(indices.size()) }
 	{
-		const auto pDevice{ pGraphicsAPI->GetGfxDevice() };
-		const auto cmdBuffer{ pGraphicsAPI->GetCurrentCommandBuffer().GetCmdBuffer() };
-		GfxBuffer stagingVertexBuffer{ pGraphicsAPI, sizeof(Vertex3D), vertices.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT , VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+		const auto pDevice{ m_pGraphicsAPI->GetGfxDevice() };
+		const auto cmdBuffer{ m_pGraphicsAPI->GetCurrentCommandBuffer().GetCmdBuffer() };
 
-		stagingVertexBuffer.Map();
-		stagingVertexBuffer.WriteToBuffer(vertices.data());
-		stagingVertexBuffer.Unmap();
+		const BufferDesc vbDesc{
+			.m_Usage = BufferUsageBits_Storage | BufferUsageBits_Vertex,
+			.m_Storage = StorageType_Device,
+			.m_Size = sizeof(Vertex3D) * vertices.size()
+		};
+		m_pVertexBufferHandle = m_pGraphicsAPI->AcquireBuffer(vbDesc);
+		const auto& vertexBuffer{ m_pGraphicsAPI->GetBuffer(m_pVertexBufferHandle) };
+		assert(vertexBuffer && L"Unable to create vertex buffer");
 
-		GfxBuffer stagingIndexBuffer{ pGraphicsAPI, sizeof(uint32_t), indices.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT , VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+		const BufferDesc ibDesc{
+			.m_Usage = BufferUsageBits_Storage | BufferUsageBits_Index,
+			.m_Storage = StorageType_Device,
+			.m_Size = sizeof(uint32_t) * indices.size()
+		};
+		m_pIndexBufferHandle = m_pGraphicsAPI->AcquireBuffer(ibDesc);
+		const auto& indexBuffer{ m_pGraphicsAPI->GetBuffer(m_pIndexBufferHandle) };
+		assert(indexBuffer && L"Unable to create index buffer");
 
-		stagingIndexBuffer.Map();
-		stagingIndexBuffer.WriteToBuffer(indices.data());
-		stagingIndexBuffer.Unmap();
+		// TODO: move staging buffer to a dedicated pool to avoid useless acquire/destroy on the main pool.
+		const BufferDesc svbDesc{
+			.m_Usage = BufferUsageBits_Storage,
+			.m_Storage = StorageType_HostVisible,
+			.m_Size = sizeof(Vertex3D) * vertices.size(),
+			.m_Data = vertices.data()
+		};
+		const BufferHandle stagingVertexBufferHandle{ m_pGraphicsAPI->AcquireBuffer(svbDesc) };
+		const auto& stagingVertexBuffer{ m_pGraphicsAPI->GetBuffer(stagingVertexBufferHandle) };
+		assert(stagingVertexBuffer && L"Unable to create staging vertex buffer");
 
-		pDevice->CopyBuffer(cmdBuffer, stagingVertexBuffer.GetBuffer(), m_pVertexBuffer->GetBuffer(), stagingVertexBuffer.GetBufferSize());
-		pDevice->CopyBuffer(cmdBuffer, stagingIndexBuffer.GetBuffer(), m_pIndexBuffer->GetBuffer(), stagingIndexBuffer.GetBufferSize());
+		const BufferDesc sibDesc{
+			.m_Usage = BufferUsageBits_Storage,
+			.m_Storage = StorageType_HostVisible,
+			.m_Size = sizeof(uint32_t) * indices.size(),
+			.m_Data = indices.data()
+		};
+		const BufferHandle stagingIndexBufferHandle{ m_pGraphicsAPI->AcquireBuffer(sibDesc) };
+		const auto& stagingIndexBuffer{ m_pGraphicsAPI->GetBuffer(stagingIndexBufferHandle) };
+		assert(stagingIndexBuffer && L"Unable to create staging vertex buffer");
+
+		pDevice->CopyBuffer(cmdBuffer, stagingVertexBuffer->m_VkBuffer, vertexBuffer->m_VkBuffer, stagingVertexBuffer->m_BufferSize);
+		pDevice->CopyBuffer(cmdBuffer, stagingIndexBuffer->m_VkBuffer, indexBuffer->m_VkBuffer, stagingIndexBuffer->m_BufferSize);
+
+		m_pGraphicsAPI->Destroy(stagingVertexBufferHandle);
+		m_pGraphicsAPI->Destroy(stagingIndexBufferHandle);
 	}
 
-	std::unique_ptr<GfxBuffer> m_pVertexBuffer;
-	std::unique_ptr<GfxBuffer> m_pIndexBuffer;
+	~MeshData()
+	{
+		m_pGraphicsAPI->Destroy(m_pVertexBufferHandle);
+		m_pGraphicsAPI->Destroy(m_pIndexBufferHandle);
+	}
+
+	MeshData(const MeshData&) noexcept = delete;
+	MeshData& operator=(const MeshData&) noexcept = delete;
+	MeshData(MeshData&&) noexcept = delete;
+	MeshData& operator=(MeshData&&) noexcept = delete;
+
+	GraphicsAPI* m_pGraphicsAPI;
+	BufferHandle m_pVertexBufferHandle;
+	BufferHandle m_pIndexBufferHandle;
 	uint32_t m_IndexCount;
 };
 

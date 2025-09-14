@@ -101,9 +101,11 @@ public:
 
 	BufferHandle AcquireBuffer(const BufferDesc& desc);
 	void Destroy(BufferHandle handle);
+	[[nodiscard]] GfxBuffer* GetBuffer(BufferHandle handle) const;
 
 	TextureHandle AcquireTexture(const TextureDesc& desc);
 	void Destroy(TextureHandle handle);
+	[[nodiscard]] GfxImage* GetTexture(TextureHandle handle) const;
 
 private:
 	bool m_IsInitialized;
@@ -121,7 +123,7 @@ private:
 	VkPipelineLayout m_VkGraphicsPipelineLayout;
 	VkPipeline m_VkGraphicsPipeline;
 
-	std::vector<std::unique_ptr<GfxBuffer>> m_PerFrameUBO;
+	std::vector<BufferHandle> m_PerFrameUBO;
 	VkDescriptorPool m_VkDescriptorPool;
 	std::vector<VkDescriptorSet> m_VkDescriptorSets;
 	mutable bool m_AwaitingDescriptorsCreation{};
